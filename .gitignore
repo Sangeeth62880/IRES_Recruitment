@@ -1,0 +1,31 @@
+# Dependencies
+node_modules/
+**/node_modules/
+
+# OS/Editor files
+.DS_Store
+.vscode/
+.idea/
+
+# Local databases
+server/data/
+server/database.db
+*.db
+
+# Environmental files
+.env
+.env.local
+server/.env
+client/.env
+
+# Multer uploads
+server/uploads/screenshots/*
+server/uploads/qr/*
+server/uploads/temp/*
+!server/uploads/screenshots/.gitkeep
+!server/uploads/qr/.gitkeep
+!server/uploads/temp/.gitkeep
+
+# Build directories
+client/dist/
+dist/
