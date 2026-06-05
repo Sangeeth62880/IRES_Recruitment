@@ -1,0 +1,11 @@
+{
+  "name": "ires-recruitment-root",
+  "version": "1.0.0",
+  "scripts": {
+    "install-client": "npm install --prefix client --include=dev",
+    "install-server": "npm install --prefix server",
+    "build-client": "npm run build --prefix client",
+    "postinstall": "npm run install-client && npm run install-server && npm run build-client",
+    "start": "node server/index.js"
+  }
+}

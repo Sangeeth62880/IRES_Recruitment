@@ -66,8 +66,22 @@ app.use('/api/admin', adminRoutes);
 const verifyRoutes = require('./routes/verify');
 app.use('/api/admin', verifyRoutes);
 
+// Serve static frontend files in production
+if (process.env.NODE_ENV === 'production') {
+  const clientDistDir = path.join(__dirname, '..', 'client', 'dist');
+  app.use(express.static(clientDistDir));
+  
+  app.get('*', (req, res, next) => {
+    if (req.path.startsWith('/api') || req.path.startsWith('/uploads')) {
+      return next();
+    }
+    res.sendFile(path.join(clientDistDir, 'index.html'));
+  });
+}
+
 app.listen(PORT, () => {
   console.log(`Server running on http://localhost:${PORT}`);
 });
 
 module.exports = app;
+
