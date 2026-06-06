@@ -60,4 +60,28 @@ if (!hasPaymentStatus) {
   db.exec('ALTER TABLE registrations ADD COLUMN payment_status TEXT DEFAULT NULL');
 }
 
+// Clean up old passcode settings
+try {
+  db.prepare("DELETE FROM settings WHERE key LIKE 'team_passcode_%'").run();
+} catch (e) {}
+
+// Initialize unique team slugs if they do not exist
+const { VALID_TEAMS } = require('../shared/constants.json');
+function generateUniqueSlug(team) {
+  const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
+  let suffix = '';
+  for (let i = 0; i < 5; i++) {
+    suffix += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return `${team}_${suffix}`;
+}
+
+VALID_TEAMS.forEach(team => {
+  const key = `team_slug_${team}`;
+  const row = db.prepare("SELECT value FROM settings WHERE key = ?").get(key);
+  if (!row) {
+    db.prepare("INSERT INTO settings (key, value) VALUES (?, ?)").run(key, generateUniqueSlug(team));
+  }
+});
+
 module.exports = db;

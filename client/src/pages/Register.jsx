@@ -1,6 +1,9 @@
 import { useState, useEffect } from 'react'
+import { useParams } from 'react-router-dom'
+import NotFound from './NotFound'
+import constants from '../../../shared/constants.json'
+const { VALID_TEAMS, TEAM_LABELS } = constants
 
-const TEAMS = ['Technical', 'Design', 'Management', 'Content', 'Outreach']
 const YEARS = ['1st', '2nd', '3rd', '4th']
 
 function AnimatedCheck() {
@@ -15,14 +18,18 @@ function AnimatedCheck() {
 }
 
 function Register() {
+  const { team } = useParams()
   const [qrUrl, setQrUrl] = useState(null)
   const [fee, setFee] = useState(349)
   const [formData, setFormData] = useState({
     name: '',
     department: '',
     year: '',
+    team_selected: '',
     utr_number: ''
   })
+  const [isValidating, setIsValidating] = useState(false)
+  const [isValidCode, setIsValidCode] = useState(true)
   const [screenshot, setScreenshot] = useState(null)
   const [previewUrl, setPreviewUrl] = useState(null)
   const [errors, setErrors] = useState({})
@@ -41,6 +48,31 @@ function Register() {
       .then(data => { if (data.fee !== undefined) setFee(data.fee) })
       .catch(() => {})
   }, [])
+
+  useEffect(() => {
+    if (team) {
+      setIsValidating(true)
+      fetch(`/api/register/verify-team?slug=${team}`)
+        .then(r => r.json())
+        .then(data => {
+          if (data.success) {
+            setIsValidCode(true)
+            setFormData(prev => ({ ...prev, team_selected: data.label }))
+          } else {
+            setIsValidCode(false)
+          }
+        })
+        .catch(() => {
+          setIsValidCode(false)
+        })
+        .finally(() => {
+          setIsValidating(false)
+        })
+    } else {
+      setFormData(prev => ({ ...prev, team_selected: '' }))
+      setIsValidCode(true)
+    }
+  }, [team])
 
   function handleChange(e) {
     const { name, value } = e.target
@@ -74,6 +106,7 @@ function Register() {
     const errs = {}
     if (!formData.name.trim()) errs.name = 'Full name is required'
     if (!formData.department.trim()) errs.department = 'Department is required'
+    if (!formData.team_selected) errs.team_selected = 'Select your team'
     if (!formData.year) errs.year = 'Select your year'
     if (!formData.utr_number.trim()) {
       errs.utr_number = 'UTR number is required'
@@ -134,6 +167,23 @@ function Register() {
     )
   }
 
+  // ── Loading state ──
+  if (isValidating) {
+    return (
+      <div className="page-bg page-bg--center">
+        <div className="form-card" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '40px' }}>
+          <span className="spinner" style={{ width: '40px', height: '40px', border: '4px solid var(--blue-light)', borderTopColor: 'var(--blue)', borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
+          <p style={{ marginTop: '20px', color: 'var(--text-muted)', fontFamily: "'DM Sans', sans-serif" }}>Verifying registration link...</p>
+        </div>
+      </div>
+    )
+  }
+
+  // ── Invalid Team link or passcode ──
+  if (!isValidCode) {
+    return <NotFound />
+  }
+
   // ── Form ──
   return (
     <div className="page-bg">
@@ -179,6 +229,19 @@ function Register() {
             <input type="text" id="reg-department" name="department" value={formData.department} onChange={handleChange} placeholder="e.g. CSE, ECE, ME" />
             {errors.department && <p className="error-text">{errors.department}</p>}
           </div>
+
+          {!team && (
+            <div className="form-group">
+              <label htmlFor="reg-team">Team</label>
+              <select id="reg-team" name="team_selected" value={formData.team_selected} onChange={handleChange}>
+                <option value="">Select team</option>
+                {VALID_TEAMS.map(t => (
+                  <option key={t} value={TEAM_LABELS[t]}>{TEAM_LABELS[t]}</option>
+                ))}
+              </select>
+              {errors.team_selected && <p className="error-text">{errors.team_selected}</p>}
+            </div>
+          )}
 
           <div className="form-group">
             <label htmlFor="reg-year">Year</label>

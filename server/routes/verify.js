@@ -206,9 +206,13 @@ router.post('/verify/statement', statementUpload.single('statement'), (req, res)
       }
     })();
 
+    const matchedCount = results.filter(r => r.status === 'matched').length;
+
     return res.json({
       success: true,
       total_utrs_in_statement: statementUTRs.size,
+      total_in_statement: rows.length,
+      matched: matchedCount,
       results
     });
   } catch (err) {

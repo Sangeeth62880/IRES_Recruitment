@@ -257,4 +257,45 @@ router.get('/qr/audit', (req, res) => {
   }
 });
 
+// GET /api/admin/teams/slugs
+router.get('/teams/slugs', (req, res) => {
+  try {
+    const { VALID_TEAMS } = require('../../shared/constants.json');
+    const slugs = {};
+    VALID_TEAMS.forEach(team => {
+      const row = db.prepare("SELECT value FROM settings WHERE key = ?").get(`team_slug_${team}`);
+      slugs[team] = row ? row.value : '';
+    });
+    return res.json(slugs);
+  } catch (err) {
+    console.error('Error fetching team slugs:', err);
+    return res.status(500).json({ success: false, error: 'Server error' });
+  }
+});
+
+// POST /api/admin/teams/slugs/regenerate
+router.post('/teams/slugs/regenerate', (req, res) => {
+  try {
+    const { team } = req.body;
+    const { VALID_TEAMS } = require('../../shared/constants.json');
+    if (!team || !VALID_TEAMS.includes(team)) {
+      return res.status(400).json({ success: false, error: 'Invalid team slug' });
+    }
+    const generateUniqueSlug = (t) => {
+      const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
+      let suffix = '';
+      for (let i = 0; i < 5; i++) {
+        suffix += chars.charAt(Math.floor(Math.random() * chars.length));
+      }
+      return `${t}_${suffix}`;
+    };
+    const newSlug = generateUniqueSlug(team);
+    db.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)").run(`team_slug_${team}`, newSlug);
+    return res.json({ success: true, slug: newSlug });
+  } catch (err) {
+    console.error('Error regenerating team slug:', err);
+    return res.status(500).json({ success: false, error: 'Server error' });
+  }
+});
+
 module.exports = router;

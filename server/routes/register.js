@@ -2,8 +2,10 @@ const express = require('express');
 const multer = require('multer');
 const path = require('path');
 const db = require('../db');
+const { VALID_TEAMS, TEAM_LABELS } = require('../../shared/constants.json');
 
 const router = express.Router();
+const VALID_DISPLAY_NAMES = Object.values(TEAM_LABELS);
 
 // Configure multer for screenshot uploads
 const screenshotStorage = multer.diskStorage({
@@ -43,7 +45,7 @@ router.post('/api/register', (req, res, next) => {
   });
 }, (req, res) => {
   try {
-    const { name, department, year, utr_number } = req.body;
+    const { name, department, year, team_selected, utr_number } = req.body;
 
     // Validate required fields
     const missing = [];
@@ -56,6 +58,14 @@ router.post('/api/register', (req, res, next) => {
       return res.status(400).json({
         success: false,
         error: `Missing required fields: ${missing.join(', ')}`
+      });
+    }
+
+    // Server-side validation for team_selected
+    if (team_selected && !VALID_DISPLAY_NAMES.includes(team_selected.trim())) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid team selected'
       });
     }
 
@@ -86,7 +96,7 @@ router.post('/api/register', (req, res, next) => {
       name.trim(),
       department.trim(),
       year.trim(),
-      'General', // default value for team_selected
+      team_selected ? team_selected.trim() : 'General', // default value for team_selected
       null,      // email
       null,      // phone
       utr_number.trim(),
@@ -114,6 +124,30 @@ router.get('/api/settings/fee', (req, res) => {
   const row = db.prepare("SELECT value FROM settings WHERE key = 'registration_fee'").get();
   const fee = row && row.value ? parseInt(row.value, 10) : 349;
   return res.json({ fee });
+});
+
+// GET /api/register/verify-team (public — checks unique team URL slug)
+router.get('/api/register/verify-team', (req, res) => {
+  try {
+    const { slug } = req.query;
+    if (!slug) {
+      return res.json({ success: false, error: 'Missing slug' });
+    }
+    const row = db.prepare("SELECT key, value FROM settings WHERE key LIKE 'team_slug_%' AND value = ?").get(slug);
+    if (row) {
+      const teamKey = row.key.replace('team_slug_', '');
+      if (VALID_TEAMS.includes(teamKey)) {
+        return res.json({
+          success: true,
+          team: teamKey,
+          label: TEAM_LABELS[teamKey]
+        });
+      }
+    }
+    return res.json({ success: false, error: 'Invalid link' });
+  } catch (err) {
+    return res.status(500).json({ success: false, error: 'Server error' });
+  }
 });
 
 module.exports = router;

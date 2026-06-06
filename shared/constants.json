@@ -1,0 +1,24 @@
+{
+  "VALID_TEAMS": [
+    "tech",
+    "curation",
+    "outreach",
+    "media",
+    "production",
+    "ambience",
+    "event",
+    "operations",
+    "sponsorship"
+  ],
+  "TEAM_LABELS": {
+    "tech": "Technical",
+    "curation": "Curation",
+    "outreach": "Outreach",
+    "media": "Media",
+    "production": "Production",
+    "ambience": "Ambience",
+    "event": "Event Management",
+    "operations": "Operations",
+    "sponsorship": "Sponsorship"
+  }
+}

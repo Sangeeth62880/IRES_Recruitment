@@ -100,7 +100,7 @@ async function run() {
 
   // Step 3: Verify via statement upload
   await test('Step 3: Verify via CSV statement upload', async () => {
-    const csvContent = `Date,Description,Credit\n2024-01-15,UPI/CR/${TEST_UTR}/IntegrationPayer,200\n`;
+    const csvContent = `Date,Description,Credit\n2024-01-15,UPI/CR/${TEST_UTR}/IntegrationPayer,349\n`;
     const blob = new Blob([csvContent], { type: 'text/csv' });
     const formData = new FormData();
     formData.append('statement', blob, 'statement.csv');

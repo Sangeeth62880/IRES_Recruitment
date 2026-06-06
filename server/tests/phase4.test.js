@@ -79,7 +79,7 @@ async function run() {
     `).run('Statement Test User', 'CSE', '2nd', 'Technical', '999988887777');
     cleanupIds.push(info.lastInsertRowid);
 
-    const csvContent = 'Date,Description,Credit\n2024-01-15,UPI/CR/999988887777/SomeUser,200\n';
+    const csvContent = 'Date,Description,Credit\n2024-01-15,UPI/CR/999988887777/SomeUser,349\n';
     const blob = new Blob([csvContent], { type: 'text/csv' });
     const formData = new FormData();
     formData.append('statement', blob, 'bank.csv');
@@ -91,10 +91,10 @@ async function run() {
     const data = await res.json();
     assert(data.matched >= 1, `Expected matched >= 1, got ${data.matched}`);
     
-    // Check it's in the results with MATCHED status
+    // Check it's in the results with matched status
     const matchRow = data.results.find(r => r.id === info.lastInsertRowid);
     assert(matchRow, 'Expected matchRow to be present');
-    assert(matchRow.status === 'MATCHED', `Expected status MATCHED, got ${matchRow.status}`);
+    assert(matchRow.status.toLowerCase() === 'matched', `Expected status matched, got ${matchRow.status}`);
 
     // Confirm it's still unverified in DB
     let row = db.prepare('SELECT verified FROM registrations WHERE id = ?').get(info.lastInsertRowid);

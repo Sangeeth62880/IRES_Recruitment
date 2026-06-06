@@ -118,6 +118,7 @@ async function run() {
     ]);
     const blob = new Blob([pngBuffer], { type: 'image/png' });
     formData.append('qr_image', blob, 'qr.png');
+    formData.append('confirm_change', 'YES_CHANGE_QR');
 
     const res = await adminFetch(`${BASE}/api/admin/settings/qr`, {
       method: 'POST',

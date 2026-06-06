@@ -102,7 +102,72 @@ async function run() {
     assert(data.success === false, `Expected success=false, got ${JSON.stringify(data)}`);
   });
 
-  // Test 4: GET /api/settings/qr
+  // Test 4: Valid registration with a valid team_selected
+  await test('POST /api/register with valid team_selected (Technical)', async () => {
+    const formData = new FormData();
+    formData.append('name', 'Test Team User');
+    formData.append('department', 'CSE');
+    formData.append('year', '2nd');
+    formData.append('team_selected', 'Technical');
+    formData.append('utr_number', '222233334444');
+
+    const pngBuffer = createDummyPNG();
+    const blob = new Blob([pngBuffer], { type: 'image/png' });
+    formData.append('screenshot', blob, 'test.png');
+
+    const res = await fetch(`${BASE}/api/register`, { method: 'POST', body: formData });
+    const data = await res.json();
+    assert(data.success === true, `Expected success=true, got ${JSON.stringify(data)}`);
+    assert(typeof data.id === 'number', `Expected numeric id, got ${data.id}`);
+    cleanupIds.push(data.id);
+    
+    // Check db entry
+    const row = db.prepare('SELECT team_selected FROM registrations WHERE id = ?').get(data.id);
+    assert(row && row.team_selected === 'Technical', `Expected team_selected='Technical', got '${row ? row.team_selected : 'none'}'`);
+  });
+
+  // Test 5: Invalid registration with an invalid team_selected -> fail
+  await test('POST /api/register with invalid team_selected (InvalidTeam) -> fail', async () => {
+    const formData = new FormData();
+    formData.append('name', 'Test Team User Invalid');
+    formData.append('department', 'CSE');
+    formData.append('year', '2nd');
+    formData.append('team_selected', 'InvalidTeam');
+    formData.append('utr_number', '333344445555');
+
+    const pngBuffer = createDummyPNG();
+    const blob = new Blob([pngBuffer], { type: 'image/png' });
+    formData.append('screenshot', blob, 'test.png');
+
+    const res = await fetch(`${BASE}/api/register`, { method: 'POST', body: formData });
+    const data = await res.json();
+    assert(data.success === false, `Expected success=false, got ${JSON.stringify(data)}`);
+  });
+
+  // Test 6: Valid registration with empty team_selected -> defaults to General
+  await test('POST /api/register with empty team_selected -> defaults to General', async () => {
+    const formData = new FormData();
+    formData.append('name', 'Test Team User Empty');
+    formData.append('department', 'CSE');
+    formData.append('year', '2nd');
+    formData.append('team_selected', '');
+    formData.append('utr_number', '444455556666');
+
+    const pngBuffer = createDummyPNG();
+    const blob = new Blob([pngBuffer], { type: 'image/png' });
+    formData.append('screenshot', blob, 'test.png');
+
+    const res = await fetch(`${BASE}/api/register`, { method: 'POST', body: formData });
+    const data = await res.json();
+    assert(data.success === true, `Expected success=true, got ${JSON.stringify(data)}`);
+    cleanupIds.push(data.id);
+
+    // Check db entry
+    const row = db.prepare('SELECT team_selected FROM registrations WHERE id = ?').get(data.id);
+    assert(row && row.team_selected === 'General', `Expected team_selected='General', got '${row ? row.team_selected : 'none'}'`);
+  });
+
+  // Test 7: GET /api/settings/qr
   await test('GET /api/settings/qr → has qr_url key', async () => {
     const res = await fetch(`${BASE}/api/settings/qr`);
     const data = await res.json();

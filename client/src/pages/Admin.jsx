@@ -1,10 +1,21 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
+import constants from '../../../shared/constants.json'
+const { VALID_TEAMS, TEAM_LABELS } = constants
 
 const NAV_ITEMS = [
   { id: 'registrations', label: 'Registrations' },
+  { id: 'team-links', label: 'Team Links' },
   { id: 'qr', label: 'QR Manager' },
   { id: 'sms', label: 'SMS Verify' }
 ]
+
+const getBaseUrl = () => {
+  let base = import.meta.env.DEV ? 'http://localhost:5173' : (import.meta.env.VITE_BASE_URL || window.location.origin);
+  if (base.endsWith('/')) {
+    base = base.slice(0, -1);
+  }
+  return base;
+};
 
 /**
  * Derive display status from verified + payment_status fields
@@ -33,6 +44,9 @@ function Admin() {
   const [loginError, setLoginError] = useState('')
   const [loggingIn, setLoggingIn] = useState(false)
   const [activeSection, setActiveSection] = useState('registrations')
+  const [copiedTeam, setCopiedTeam] = useState(null)
+  const [activeTeamFilter, setActiveTeamFilter] = useState('all')
+  const [slugs, setSlugs] = useState({})
 
   const [registrations, setRegistrations] = useState([])
   const [qrUrl, setQrUrl] = useState(null)
@@ -96,6 +110,17 @@ function Admin() {
     setQrUrl(null)
   }
 
+  function handleCopy(slug) {
+    const uniqueSlug = slugs[slug] || slug
+    const url = `${getBaseUrl()}/register/${uniqueSlug}`
+    navigator.clipboard.writeText(url)
+      .then(() => {
+        setCopiedTeam(slug)
+        setTimeout(() => setCopiedTeam(null), 2000)
+      })
+      .catch(() => {})
+  }
+
   // Data
   const loadRegistrations = useCallback(async () => {
     try {
@@ -111,6 +136,30 @@ function Admin() {
       setQrUrl(data.qr_url)
     } catch {}
   }, [])
+
+  const loadSlugs = useCallback(async () => {
+    try {
+      const res = await apiFetch('/api/admin/teams/slugs')
+      setSlugs(await res.json())
+    } catch {}
+  }, [apiFetch])
+
+  async function handleRegenerateSlug(slug) {
+    if (!window.confirm(`Are you sure you want to regenerate the unique link for ${TEAM_LABELS[slug]}? The old link will stop working immediately!`)) {
+      return
+    }
+    try {
+      const res = await apiFetch('/api/admin/teams/slugs/regenerate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ team: slug })
+      })
+      const data = await res.json()
+      if (data.success) {
+        setSlugs(prev => ({ ...prev, [slug]: data.slug }))
+      }
+    } catch {}
+  }
 
   const loadFee = useCallback(async () => {
     try {
@@ -138,15 +187,18 @@ function Admin() {
   }, [apiFetch])
 
   useEffect(() => {
-    if (loggedIn) { loadRegistrations(); loadQR(); loadFee() }
-  }, [loggedIn, loadRegistrations, loadQR, loadFee])
+    if (loggedIn) { loadRegistrations(); loadQR(); loadFee(); loadSlugs() }
+  }, [loggedIn, loadRegistrations, loadQR, loadFee, loadSlugs])
 
   useEffect(() => {
     if (loggedIn && activeSection === 'qr') {
       loadQRIntegrity()
       loadQRAuditLogs()
     }
-  }, [loggedIn, activeSection, loadQRIntegrity, loadQRAuditLogs])
+    if (loggedIn && activeSection === 'team-links') {
+      loadSlugs()
+    }
+  }, [loggedIn, activeSection, loadQRIntegrity, loadQRAuditLogs, loadSlugs])
 
   // QR
   function handleQRFileSelect(e) {
@@ -293,6 +345,11 @@ function Admin() {
     if (activeFilter === 'pending' && status !== 'pending') return false
     if (activeFilter === 'flagged' && !r.flagged) return false
     if (activeFilter === 'duplicate' && status !== 'duplicate_utr') return false
+
+    if (activeTeamFilter !== 'all') {
+      const teamVal = r.team_selected || 'General';
+      if (teamVal !== activeTeamFilter) return false;
+    }
 
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase()
@@ -503,6 +560,17 @@ function Admin() {
                   </button>
                 ))}
               </div>
+              <select
+                value={activeTeamFilter}
+                onChange={e => setActiveTeamFilter(e.target.value)}
+                style={{ width: 180, padding: '8px 12px', fontSize: 13, height: 38 }}
+              >
+                <option value="all">All Teams</option>
+                <option value="General">General (No Link)</option>
+                {VALID_TEAMS.map(t => (
+                  <option key={t} value={TEAM_LABELS[t]}>{TEAM_LABELS[t]}</option>
+                ))}
+              </select>
             </div>
 
             {/* Registrations Table */}
@@ -512,6 +580,7 @@ function Admin() {
                   <tr>
                     <th>Name</th>
                     <th>Dept</th>
+                    <th>Team</th>
                     <th>Year</th>
                     <th>UTR</th>
                     <th>Status</th>
@@ -522,7 +591,7 @@ function Admin() {
                 <tbody>
                   {filtered.length === 0 ? (
                     <tr>
-                      <td colSpan={7} style={{ textAlign: 'center', color: 'var(--text-subtle)', padding: 40 }}>
+                      <td colSpan={8} style={{ textAlign: 'center', color: 'var(--text-subtle)', padding: 40 }}>
                         No registrations found
                       </td>
                     </tr>
@@ -548,6 +617,7 @@ function Admin() {
                             )}
                           </td>
                           <td>{r.department}</td>
+                          <td style={{ fontWeight: 500 }}>{r.team_selected || 'General'}</td>
                           <td>{r.year}</td>
                           <td style={{ fontFamily: "'Courier New', monospace", fontSize: 12, letterSpacing: '0.02em' }}>{r.utr_number}</td>
                           <td>
@@ -593,6 +663,58 @@ function Admin() {
                       )
                     })
                   )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {activeSection === 'team-links' && (
+          <div className="section">
+            <div className="section-header">
+              <h2>Team Links &amp; Security Settings</h2>
+            </div>
+            <div className="table-wrapper">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Team</th>
+                    <th>Registration URL</th>
+                    <th style={{ width: 220 }}>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {VALID_TEAMS.map(slug => {
+                    const label = TEAM_LABELS[slug]
+                    const uniqueSlug = slugs[slug] || slug
+                    const url = `${getBaseUrl()}/register/${uniqueSlug}`
+                    return (
+                      <tr key={slug}>
+                        <td style={{ fontWeight: 500 }}>{label}</td>
+                        <td style={{ fontFamily: 'monospace', fontSize: 13, color: 'var(--text-muted)' }}>
+                          {url}
+                        </td>
+                        <td>
+                          <div style={{ display: 'flex', gap: 8 }}>
+                            <button
+                              className="btn btn--action"
+                              style={{ minWidth: 80 }}
+                              onClick={() => handleCopy(slug)}
+                            >
+                              {copiedTeam === slug ? 'Copied!' : 'Copy Link'}
+                            </button>
+                            <button
+                              className="btn btn--action"
+                              style={{ border: '1px solid var(--error-light)', color: 'var(--error)' }}
+                              onClick={() => handleRegenerateSlug(slug)}
+                            >
+                              Regenerate Link
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    )
+                  })}
                 </tbody>
               </table>
             </div>
