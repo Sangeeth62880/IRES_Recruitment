@@ -13,7 +13,7 @@ const app = express();
 const PORT = process.env.PORT || 3001;
 
 // Ensure upload directories exist
-const uploadsDir = path.join(__dirname, 'uploads');
+const uploadsDir = path.join(__dirname, 'data', 'uploads');
 const screenshotsDir = path.join(uploadsDir, 'screenshots');
 const qrDir = path.join(uploadsDir, 'qr');
 const tempDir = path.join(uploadsDir, 'temp');

@@ -10,7 +10,7 @@ const VALID_DISPLAY_NAMES = Object.values(TEAM_LABELS);
 // Configure multer for screenshot uploads
 const screenshotStorage = multer.diskStorage({
   destination: (req, file, cb) => {
-    cb(null, path.join(__dirname, '..', 'uploads', 'screenshots'));
+    cb(null, path.join(__dirname, '..', 'data', 'uploads', 'screenshots'));
   },
   filename: (req, file, cb) => {
     const ext = path.extname(file.originalname);

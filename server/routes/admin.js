@@ -14,7 +14,7 @@ router.use(requireAdmin);
 // Configure multer for QR code uploads
 const qrStorage = multer.diskStorage({
   destination: (req, file, cb) => {
-    cb(null, path.join(__dirname, '../uploads/qr/'));
+    cb(null, path.join(__dirname, '../data/uploads/qr/'));
   },
   filename: (req, file, cb) => {
     const ext = path.extname(file.originalname);
@@ -84,7 +84,7 @@ router.delete('/registrations/:id', (req, res) => {
 
     // Optionally delete the screenshot file
     if (row && row.screenshot_path) {
-      const filePath = path.join(__dirname, '..', 'uploads', 'screenshots', row.screenshot_path);
+      const filePath = path.join(__dirname, '..', 'data', 'uploads', 'screenshots', row.screenshot_path);
       if (fs.existsSync(filePath)) {
         fs.unlinkSync(filePath);
       }
@@ -164,7 +164,7 @@ router.post('/settings/qr', uploadQR.single('qr_image'), (req, res) => {
 
     // Clean up previous file to prevent directory bloating
     if (previousFilename && previousFilename !== 'Initial Upload') {
-      const previousFilePath = path.join(__dirname, '../uploads/qr/', previousFilename);
+      const previousFilePath = path.join(__dirname, '../data/uploads/qr/', previousFilename);
       if (fs.existsSync(previousFilePath)) {
         try { fs.unlinkSync(previousFilePath); } catch (e) {}
       }
@@ -227,7 +227,7 @@ router.get('/qr/verify', (req, res) => {
     const qrFilename = qrPathRow.value;
     const expectedHash = qrHashRow ? qrHashRow.value : '';
 
-    const absolutePath = path.join(__dirname, '../uploads/qr/', qrFilename);
+    const absolutePath = path.join(__dirname, '../data/uploads/qr/', qrFilename);
     if (!fs.existsSync(absolutePath)) {
       return res.json({ intact: false });
     }

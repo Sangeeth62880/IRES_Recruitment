@@ -12,7 +12,7 @@ router.use(requireAdmin);
 
 // Multer for statement uploads (temp storage)
 const statementUpload = multer({
-  dest: path.join(__dirname, '..', 'uploads', 'temp'),
+  dest: path.join(__dirname, '..', 'data', 'uploads', 'temp'),
   limits: { fileSize: 10 * 1024 * 1024 } // 10MB
 });
 
