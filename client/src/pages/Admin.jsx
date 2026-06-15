@@ -73,6 +73,15 @@ function Admin() {
   const [showQRConfirm, setShowQRConfirm] = useState(false)
   const [pendingQRFile, setPendingQRFile] = useState(null)
   const [qrUploading, setQrUploading] = useState(false)
+  const [bankDetails, setBankDetails] = useState({
+    bank_name: '',
+    account_holder: '',
+    account_number: '',
+    ifsc_code: '',
+    branch_name: ''
+  })
+  const [bankSaving, setBankSaving] = useState(false)
+  const [bankStatus, setBankStatus] = useState({ type: '', message: '' })
 
   const apiFetch = useCallback(async (url, options = {}) => {
     const res = await fetch(url, { ...options, credentials: 'include' })
@@ -186,19 +195,34 @@ function Admin() {
     } catch {}
   }, [apiFetch])
 
+  const loadBankDetails = useCallback(async () => {
+    try {
+      const res = await apiFetch('/api/settings/bank')
+      const data = await res.json()
+      setBankDetails({
+        bank_name: data.bank_name || '',
+        account_holder: data.account_holder || '',
+        account_number: data.account_number || '',
+        ifsc_code: data.ifsc_code || '',
+        branch_name: data.branch_name || ''
+      })
+    } catch {}
+  }, [apiFetch])
+
   useEffect(() => {
-    if (loggedIn) { loadRegistrations(); loadQR(); loadFee(); loadSlugs() }
-  }, [loggedIn, loadRegistrations, loadQR, loadFee, loadSlugs])
+    if (loggedIn) { loadRegistrations(); loadQR(); loadFee(); loadSlugs(); loadBankDetails() }
+  }, [loggedIn, loadRegistrations, loadQR, loadFee, loadSlugs, loadBankDetails])
 
   useEffect(() => {
     if (loggedIn && activeSection === 'qr') {
       loadQRIntegrity()
       loadQRAuditLogs()
+      loadBankDetails()
     }
     if (loggedIn && activeSection === 'team-links') {
       loadSlugs()
     }
-  }, [loggedIn, activeSection, loadQRIntegrity, loadQRAuditLogs, loadSlugs])
+  }, [loggedIn, activeSection, loadQRIntegrity, loadQRAuditLogs, loadSlugs, loadBankDetails])
 
   // QR
   function handleQRFileSelect(e) {
@@ -254,6 +278,65 @@ function Admin() {
       if (data.success) setRegistrationFee(data.fee)
     } catch {}
     finally { setFeeSaving(false) }
+  }
+
+  // Bank
+  async function handleBankSave(e) {
+    e.preventDefault()
+    setBankStatus({ type: '', message: '' })
+
+    const acNum = bankDetails.account_number.trim()
+    const ifsc = bankDetails.ifsc_code.trim()
+    const bankName = bankDetails.bank_name.trim()
+    const holder = bankDetails.account_holder.trim()
+    const branch = bankDetails.branch_name.trim()
+
+    if (bankName.length > 100) {
+      setBankStatus({ type: 'error', message: 'Bank name must be at most 100 characters' })
+      return
+    }
+    if (holder.length > 100) {
+      setBankStatus({ type: 'error', message: 'Account holder must be at most 100 characters' })
+      return
+    }
+    if (acNum && !/^\d{9,18}$/.test(acNum)) {
+      setBankStatus({ type: 'error', message: 'Account number must be numeric, 9-18 digits' })
+      return
+    }
+    if (ifsc && !/^[A-Z]{4}0[A-Z0-9]{6}$/.test(ifsc)) {
+      setBankStatus({ type: 'error', message: 'IFSC code must match standard format (e.g. FDRL0001234)' })
+      return
+    }
+    if (branch.length > 100) {
+      setBankStatus({ type: 'error', message: 'Branch name must be at most 100 characters' })
+      return
+    }
+
+    setBankSaving(true)
+    try {
+      const res = await apiFetch('/api/admin/settings/bank', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          bank_name: bankName,
+          account_holder: holder,
+          account_number: acNum,
+          ifsc_code: ifsc,
+          branch_name: branch
+        })
+      })
+      const data = await res.json()
+      if (res.ok && data.success) {
+        setBankStatus({ type: 'success', message: 'Bank details saved successfully!' })
+        setTimeout(() => setBankStatus(prev => prev.type === 'success' ? { type: '', message: '' } : prev), 4000)
+      } else {
+        setBankStatus({ type: 'error', message: data.error || 'Failed to save bank details' })
+      }
+    } catch {
+      setBankStatus({ type: 'error', message: 'Network error. Please try again.' })
+    } finally {
+      setBankSaving(false)
+    }
   }
 
   // Statement
@@ -776,6 +859,91 @@ function Admin() {
                   {feeSaving ? <><span className="spinner" /> Saving...</> : 'Save Fee'}
                 </button>
               </div>
+            </div>
+
+            <div className="admin-card" style={{ marginTop: 24 }}>
+              <h3 className="admin-card__heading">Bank Transfer Details</h3>
+              <p className="helper-text" style={{ marginBottom: 16 }}>
+                Provide the organization's bank details. Leave these fields empty to hide/disable the Bank Transfer option on the public registration portal.
+              </p>
+              {bankStatus.message && (
+                <div className={`alert alert--${bankStatus.type === 'error' ? 'error' : 'success'}`} style={{ marginBottom: 16 }}>
+                  {bankStatus.message}
+                </div>
+              )}
+              <form onSubmit={handleBankSave}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px', marginBottom: '16px' }}>
+                  <div className="form-group" style={{ marginBottom: 0 }}>
+                    <label htmlFor="bank-name">Bank Name</label>
+                    <input
+                      type="text"
+                      id="bank-name"
+                      value={bankDetails.bank_name}
+                      onChange={e => setBankDetails(prev => ({ ...prev, bank_name: e.target.value }))}
+                      placeholder="e.g. Federal Bank"
+                      maxLength={100}
+                    />
+                  </div>
+                  <div className="form-group" style={{ marginBottom: 0 }}>
+                    <label htmlFor="account-holder">Account Holder Name</label>
+                    <input
+                      type="text"
+                      id="account-holder"
+                      value={bankDetails.account_holder}
+                      onChange={e => setBankDetails(prev => ({ ...prev, account_holder: e.target.value }))}
+                      placeholder="e.g. SEDS CUSAT"
+                      maxLength={100}
+                    />
+                  </div>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '16px', marginBottom: '16px' }}>
+                  <div className="form-group" style={{ marginBottom: 0 }}>
+                    <label htmlFor="account-number">Account Number</label>
+                    <input
+                      type="text"
+                      id="account-number"
+                      value={bankDetails.account_number}
+                      onChange={e => setBankDetails(prev => ({ ...prev, account_number: e.target.value }))}
+                      placeholder="9 to 18 digits"
+                      maxLength={18}
+                    />
+                  </div>
+                  <div className="form-group" style={{ marginBottom: 0 }}>
+                    <label htmlFor="ifsc-code">IFSC Code</label>
+                    <input
+                      type="text"
+                      id="ifsc-code"
+                      value={bankDetails.ifsc_code}
+                      onChange={e => setBankDetails(prev => ({ ...prev, ifsc_code: e.target.value.toUpperCase() }))}
+                      placeholder="e.g. FDRL0001234"
+                      maxLength={11}
+                    />
+                  </div>
+                  <div className="form-group" style={{ marginBottom: 0 }}>
+                    <label htmlFor="branch-name">Branch Name</label>
+                    <input
+                      type="text"
+                      id="branch-name"
+                      value={bankDetails.branch_name}
+                      onChange={e => setBankDetails(prev => ({ ...prev, branch_name: e.target.value }))}
+                      placeholder="e.g. CUSAT Campus"
+                      maxLength={100}
+                    />
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 20 }}>
+                  <button
+                    type="submit"
+                    className="btn btn--primary"
+                    style={{ width: 'auto', padding: '10px 24px' }}
+                    disabled={bankSaving}
+                  >
+                    {bankSaving ? <><span className="spinner" /> Saving...</> : 'Save Bank Details'}
+                  </button>
+                </div>
+              </form>
             </div>
 
             <div className="admin-card" style={{ marginTop: 24 }}>

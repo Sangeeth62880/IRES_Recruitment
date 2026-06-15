@@ -203,6 +203,56 @@ router.post('/settings/fee', (req, res) => {
   }
 });
 
+// PATCH /api/admin/settings/bank
+router.patch('/settings/bank', (req, res) => {
+  try {
+    const { bank_name, account_holder, account_number, ifsc_code, branch_name } = req.body;
+
+    const bankNameVal = typeof bank_name === 'string' ? bank_name.trim() : '';
+    const accountHolderVal = typeof account_holder === 'string' ? account_holder.trim() : '';
+    const accountNumberVal = typeof account_number === 'string' ? account_number.trim() : '';
+    const ifscCodeVal = typeof ifsc_code === 'string' ? ifsc_code.trim() : '';
+    const branchNameVal = typeof branch_name === 'string' ? branch_name.trim() : '';
+
+    // Validate if non-empty
+    if (bankNameVal && bankNameVal.length > 100) {
+      return res.status(400).json({ success: false, error: 'Bank name must be at most 100 characters' });
+    }
+    if (accountHolderVal && accountHolderVal.length > 100) {
+      return res.status(400).json({ success: false, error: 'Account holder must be at most 100 characters' });
+    }
+    if (accountNumberVal && !/^\d{9,18}$/.test(accountNumberVal)) {
+      return res.status(400).json({ success: false, error: 'Account number must be numeric, 9-18 digits' });
+    }
+    if (ifscCodeVal && !/^[A-Z]{4}0[A-Z0-9]{6}$/.test(ifscCodeVal)) {
+      return res.status(400).json({ success: false, error: 'IFSC code must match standard format (e.g. FDRL0001234)' });
+    }
+    if (branchNameVal && branchNameVal.length > 100) {
+      return res.status(400).json({ success: false, error: 'Branch name must be at most 100 characters' });
+    }
+
+    // Save to settings table
+    const updates = {
+      bank_name: bankNameVal,
+      account_holder: accountHolderVal,
+      account_number: accountNumberVal,
+      ifsc_code: ifscCodeVal,
+      branch_name: branchNameVal
+    };
+
+    db.transaction(() => {
+      Object.entries(updates).forEach(([key, value]) => {
+        db.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)").run(key, value);
+      });
+    })();
+
+    return res.json({ success: true, bank_details: updates });
+  } catch (err) {
+    console.error('Bank settings update error:', err);
+    return res.status(500).json({ success: false, error: 'Server error' });
+  }
+});
+
 // PATCH /api/admin/registrations/:id/unflag
 router.patch('/registrations/:id/unflag', (req, res) => {
   try {
