@@ -63,6 +63,29 @@ router.post('/api/register', (req, res) => {
   }
 });
 
+// GET /api/settings/fee (public — shown on registration form)
+router.get('/api/settings/fee', (req, res) => {
+  const row = db.prepare("SELECT value FROM settings WHERE key = 'registration_fee'").get();
+  const fee = row && row.value ? parseInt(row.value, 10) : 349;
+  return res.json({ fee });
+});
+
+// GET /api/settings/bank (public — shown on registration form if populated)
+router.get('/api/settings/bank', (req, res) => {
+  try {
+    const fields = ['bank_name', 'account_holder', 'account_number', 'ifsc_code', 'branch_name'];
+    const bankDetails = {};
+    fields.forEach(field => {
+      const row = db.prepare("SELECT value FROM settings WHERE key = ?").get(field);
+      bankDetails[field] = row ? row.value : '';
+    });
+    return res.json(bankDetails);
+  } catch (err) {
+    console.error('Error fetching bank settings:', err);
+    return res.status(500).json({ success: false, error: 'Server error' });
+  }
+});
+
 // GET /api/register/verify-team (public — checks unique team URL slug)
 router.get('/api/register/verify-team', (req, res) => {
   try {

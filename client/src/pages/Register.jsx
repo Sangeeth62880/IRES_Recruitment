@@ -33,6 +33,26 @@ function Register() {
   const [submitted, setSubmitted] = useState(false)
   const [serverError, setServerError] = useState('')
 
+  const [fee, setFee] = useState(349)
+  const [bankDetails, setBankDetails] = useState(null)
+  const [copiedField, setCopiedField] = useState(null)
+
+  useEffect(() => {
+    fetch('/api/settings/fee')
+      .then(r => r.json())
+      .then(data => { if (data.fee !== undefined) setFee(data.fee) })
+      .catch(() => {})
+
+    fetch('/api/settings/bank')
+      .then(r => r.json())
+      .then(data => {
+        if (data && data.bank_name && data.account_holder && data.account_number && data.ifsc_code) {
+          setBankDetails(data)
+        }
+      })
+      .catch(() => {})
+  }, [])
+
   useEffect(() => {
     if (team) {
       setIsValidating(true)
@@ -57,6 +77,15 @@ function Register() {
       setIsValidCode(true)
     }
   }, [team])
+
+  function handleCopy(text, field) {
+    navigator.clipboard.writeText(text)
+      .then(() => {
+        setCopiedField(field)
+        setTimeout(() => setCopiedField(null), 2000)
+      })
+      .catch(() => {})
+  }
 
   function handleChange(e) {
     const { name, value } = e.target
@@ -167,6 +196,91 @@ function Register() {
           <p className="card-header__subtitle">Innovation Research and Exploration of Space</p>
           <hr className="card-header__rule" />
         </div>
+
+        {/* Bank Transfer Details Section */}
+        {bankDetails && (
+          <div className="bank-details-card" style={{
+            background: '#FFFFFF',
+            border: '1px solid var(--border)',
+            borderRadius: 'var(--radius-lg)',
+            padding: '20px',
+            marginBottom: '24px',
+            boxShadow: '0 4px 12px rgba(15, 23, 42, 0.03)',
+            textAlign: 'left'
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', borderBottom: '1px solid var(--blue-light)', paddingBottom: '12px' }}>
+              <span style={{ fontSize: '11px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-subtle)' }}>Payment Mode</span>
+              <span style={{ fontSize: '18px', fontWeight: '850', color: 'var(--blue)' }}>&#8377;{fee}</span>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+                <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Bank</span>
+                <span style={{ fontSize: '14px', fontWeight: '600', color: 'var(--text)' }}>{bankDetails.bank_name}</span>
+              </div>
+              
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+                <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Account Name</span>
+                <span style={{ fontSize: '14px', fontWeight: '600', color: 'var(--text)' }}>{bankDetails.account_holder}</span>
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Account Number</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span style={{ fontSize: '14px', fontFamily: "'Courier New', monospace", fontWeight: '700', color: 'var(--text)' }}>{bankDetails.account_number}</span>
+                  <button
+                    type="button"
+                    onClick={() => handleCopy(bankDetails.account_number, 'account_number')}
+                    style={{
+                      padding: '4px 8px',
+                      fontSize: '11px',
+                      background: copiedField === 'account_number' ? 'var(--success)' : 'var(--blue-light)',
+                      color: copiedField === 'account_number' ? '#FFFFFF' : 'var(--blue)',
+                      border: 'none',
+                      borderRadius: '4px',
+                      cursor: 'pointer',
+                      fontWeight: '600',
+                      transition: 'all 0.15s ease'
+                    }}
+                  >
+                    {copiedField === 'account_number' ? 'Copied!' : 'Copy'}
+                  </button>
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>IFSC Code</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span style={{ fontSize: '14px', fontFamily: "'Courier New', monospace", fontWeight: '700', color: 'var(--text)' }}>{bankDetails.ifsc_code}</span>
+                  <button
+                    type="button"
+                    onClick={() => handleCopy(bankDetails.ifsc_code, 'ifsc_code')}
+                    style={{
+                      padding: '4px 8px',
+                      fontSize: '11px',
+                      background: copiedField === 'ifsc_code' ? 'var(--success)' : 'var(--blue-light)',
+                      color: copiedField === 'ifsc_code' ? '#FFFFFF' : 'var(--blue)',
+                      border: 'none',
+                      borderRadius: '4px',
+                      cursor: 'pointer',
+                      fontWeight: '600',
+                      transition: 'all 0.15s ease'
+                    }}
+                  >
+                    {copiedField === 'ifsc_code' ? 'Copied!' : 'Copy'}
+                  </button>
+                </div>
+              </div>
+
+              {bankDetails.branch_name && (
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+                  <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Branch</span>
+                  <span style={{ fontSize: '14px', fontWeight: '500', color: 'var(--text)' }}>{bankDetails.branch_name}</span>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
 
         {serverError && <div className="alert alert--error">{serverError}</div>}
 

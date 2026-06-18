@@ -102,7 +102,20 @@ async function run() {
     assert(contentType && contentType.includes('text/csv'), `Expected text/csv, got ${contentType}`);
   });
 
+  // Test 5: Save and get registration fee
+  await test('POST /api/admin/settings/fee → success', async () => {
+    const feeRes = await adminFetch(`${BASE}/api/admin/settings/fee`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ fee: 399 })
+    });
+    const feeData = await feeRes.json();
+    assert(feeData.success === true, `Expected success, got ${JSON.stringify(feeData)}`);
+    assert(feeData.fee === 399, `Expected fee=399, got ${feeData.fee}`);
+  });
+
   // Cleanup
+  db.prepare("DELETE FROM settings WHERE key = 'registration_fee'").run();
   for (const id of cleanupIds) {
     db.prepare('DELETE FROM registrations WHERE id = ?').run(id);
   }
