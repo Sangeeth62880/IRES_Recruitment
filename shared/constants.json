@@ -8,7 +8,9 @@
     "ambience",
     "event",
     "operations",
-    "sponsorship"
+    "sponsorship",
+    "content",
+    "hr"
   ],
   "TEAM_LABELS": {
     "tech": "Technical",
@@ -17,8 +19,10 @@
     "media": "Media",
     "production": "Production",
     "ambience": "Ambience",
-    "event": "Event Management",
+    "event": "Event",
     "operations": "Operations",
-    "sponsorship": "Sponsorship"
+    "sponsorship": "Sponsorship",
+    "content": "Content",
+    "hr": "HR"
   }
 }
