@@ -64,10 +64,6 @@ app.post('/api/admin/logout', logout);
 // Protected admin routes
 app.use('/api/admin', adminRoutes);
 
-// Verification routes (also admin-protected)
-const verifyRoutes = require('./routes/verify');
-app.use('/api/admin', verifyRoutes);
-
 // Serve static frontend files in production
 if (process.env.NODE_ENV === 'production') {
   const clientDistDir = path.join(__dirname, '..', 'client', 'dist');

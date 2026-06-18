@@ -10,7 +10,8 @@
     "operations",
     "sponsorship",
     "content",
-    "hr"
+    "hr",
+    "project"
   ],
   "TEAM_LABELS": {
     "tech": "Technical",
@@ -23,6 +24,7 @@
     "operations": "Operations",
     "sponsorship": "Sponsorship",
     "content": "Content",
-    "hr": "HR"
+    "hr": "HR",
+    "project": "Project"
   }
 }

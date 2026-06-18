@@ -1,12 +1,10 @@
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import constants from '../../../shared/constants.json'
 const { VALID_TEAMS, TEAM_LABELS } = constants
 
 const NAV_ITEMS = [
   { id: 'registrations', label: 'Registrations' },
-  { id: 'team-links', label: 'Team Links' },
-  { id: 'qr', label: 'QR Manager' },
-  { id: 'sms', label: 'SMS Verify' }
+  { id: 'team-links', label: 'Team Links' }
 ]
 
 const getBaseUrl = () => {
@@ -17,25 +15,13 @@ const getBaseUrl = () => {
   return base;
 };
 
-/**
- * Derive display status from verified + payment_status fields
- */
 function getDisplayStatus(r) {
-  if (r.verified) return 'verified'
-  if (r.payment_status === 'matched') return 'matched'
-  if (r.payment_status === 'amount_mismatch') return 'amount_mismatch'
-  if (r.payment_status === 'not_found') return 'not_found'
-  if (r.payment_status === 'duplicate_utr') return 'duplicate_utr'
-  return 'pending'
+  return r.verified ? 'verified' : 'pending'
 }
 
 const STATUS_BADGE_MAP = {
-  verified:        { className: 'badge--verified',        label: 'Verified' },
-  matched:         { className: 'badge--matched',         label: 'Matched' },
-  amount_mismatch: { className: 'badge--amount-mismatch', label: 'Amt Mismatch' },
-  not_found:       { className: 'badge--not-found',       label: 'Not Found' },
-  duplicate_utr:   { className: 'badge--duplicate',       label: 'Duplicate' },
-  pending:         { className: 'badge--pending',         label: 'Pending' },
+  verified: { className: 'badge--verified', label: 'Verified' },
+  pending:  { className: 'badge--pending',  label: 'Pending' }
 }
 
 function Admin() {
@@ -49,39 +35,8 @@ function Admin() {
   const [slugs, setSlugs] = useState({})
 
   const [registrations, setRegistrations] = useState([])
-  const [qrUrl, setQrUrl] = useState(null)
-
-  const [statementFile, setStatementFile] = useState(null)
-  const [statementFileName, setStatementFileName] = useState('')
-  const [statementResult, setStatementResult] = useState(null)
-  const [statementLoading, setStatementLoading] = useState(false)
-  const fileInputRef = useRef(null)
-
-  const [smsText, setSmsText] = useState('')
-  const [smsResult, setSmsResult] = useState(null)
-  const [smsLoading, setSmsLoading] = useState(false)
-
   const [activeFilter, setActiveFilter] = useState('all')
   const [searchQuery, setSearchQuery] = useState('')
-
-  const [registrationFee, setRegistrationFee] = useState(349)
-  const [feeInput, setFeeInput] = useState('')
-  const [feeSaving, setFeeSaving] = useState(false)
-
-  const [qrIntact, setQrIntact] = useState(true)
-  const [qrAuditLogs, setQrAuditLogs] = useState([])
-  const [showQRConfirm, setShowQRConfirm] = useState(false)
-  const [pendingQRFile, setPendingQRFile] = useState(null)
-  const [qrUploading, setQrUploading] = useState(false)
-  const [bankDetails, setBankDetails] = useState({
-    bank_name: '',
-    account_holder: '',
-    account_number: '',
-    ifsc_code: '',
-    branch_name: ''
-  })
-  const [bankSaving, setBankSaving] = useState(false)
-  const [bankStatus, setBankStatus] = useState({ type: '', message: '' })
 
   const apiFetch = useCallback(async (url, options = {}) => {
     const res = await fetch(url, { ...options, credentials: 'include' })
@@ -116,7 +71,6 @@ function Admin() {
     try { await fetch('/api/admin/logout', { method: 'POST', credentials: 'include' }) } catch {}
     setLoggedIn(false)
     setRegistrations([])
-    setQrUrl(null)
   }
 
   function handleCopy(slug) {
@@ -137,14 +91,6 @@ function Admin() {
       setRegistrations(await res.json())
     } catch {}
   }, [apiFetch])
-
-  const loadQR = useCallback(async () => {
-    try {
-      const res = await fetch('/api/settings/qr')
-      const data = await res.json()
-      setQrUrl(data.qr_url)
-    } catch {}
-  }, [])
 
   const loadSlugs = useCallback(async () => {
     try {
@@ -170,232 +116,15 @@ function Admin() {
     } catch {}
   }
 
-  const loadFee = useCallback(async () => {
-    try {
-      const res = await apiFetch('/api/admin/settings/fee')
-      const data = await res.json()
-      setRegistrationFee(data.fee)
-      setFeeInput(String(data.fee))
-    } catch {}
-  }, [apiFetch])
-
-  const loadQRIntegrity = useCallback(async () => {
-    try {
-      const res = await apiFetch('/api/admin/qr/verify')
-      const data = await res.json()
-      setQrIntact(data.intact)
-    } catch {}
-  }, [apiFetch])
-
-  const loadQRAuditLogs = useCallback(async () => {
-    try {
-      const res = await apiFetch('/api/admin/qr/audit')
-      const data = await res.json()
-      setQrAuditLogs(data)
-    } catch {}
-  }, [apiFetch])
-
-  const loadBankDetails = useCallback(async () => {
-    try {
-      const res = await apiFetch('/api/settings/bank')
-      const data = await res.json()
-      setBankDetails({
-        bank_name: data.bank_name || '',
-        account_holder: data.account_holder || '',
-        account_number: data.account_number || '',
-        ifsc_code: data.ifsc_code || '',
-        branch_name: data.branch_name || ''
-      })
-    } catch {}
-  }, [apiFetch])
+  useEffect(() => {
+    if (loggedIn) { loadRegistrations(); loadSlugs() }
+  }, [loggedIn, loadRegistrations, loadSlugs])
 
   useEffect(() => {
-    if (loggedIn) { loadRegistrations(); loadQR(); loadFee(); loadSlugs(); loadBankDetails() }
-  }, [loggedIn, loadRegistrations, loadQR, loadFee, loadSlugs, loadBankDetails])
-
-  useEffect(() => {
-    if (loggedIn && activeSection === 'qr') {
-      loadQRIntegrity()
-      loadQRAuditLogs()
-      loadBankDetails()
-    }
     if (loggedIn && activeSection === 'team-links') {
       loadSlugs()
     }
-  }, [loggedIn, activeSection, loadQRIntegrity, loadQRAuditLogs, loadSlugs, loadBankDetails])
-
-  // QR
-  function handleQRFileSelect(e) {
-    const file = e.target.files[0]
-    if (!file) return
-    setPendingQRFile(file)
-    setShowQRConfirm(true)
-    e.target.value = ''
-  }
-
-  async function confirmQRUpload() {
-    if (!pendingQRFile) return
-    setQrUploading(true)
-    const fd = new FormData()
-    fd.append('qr_image', pendingQRFile)
-    fd.append('confirm_change', 'YES_CHANGE_QR')
-    try {
-      const res = await apiFetch('/api/admin/settings/qr', { method: 'POST', body: fd })
-      const data = await res.json()
-      if (data.success) {
-        setQrUrl(data.qr_url)
-        loadQRIntegrity()
-        loadQRAuditLogs()
-      } else {
-        alert(data.error || 'Failed to upload QR')
-      }
-    } catch {
-      alert('Network error during upload')
-    } finally {
-      setQrUploading(false)
-      setShowQRConfirm(false)
-      setPendingQRFile(null)
-    }
-  }
-
-  function cancelQRUpload() {
-    setShowQRConfirm(false)
-    setPendingQRFile(null)
-  }
-
-  // Fee
-  async function handleFeeSave() {
-    const val = parseInt(feeInput, 10)
-    if (isNaN(val) || val <= 0) return
-    setFeeSaving(true)
-    try {
-      const res = await apiFetch('/api/admin/settings/fee', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ fee: val })
-      })
-      const data = await res.json()
-      if (data.success) setRegistrationFee(data.fee)
-    } catch {}
-    finally { setFeeSaving(false) }
-  }
-
-  // Bank
-  async function handleBankSave(e) {
-    e.preventDefault()
-    setBankStatus({ type: '', message: '' })
-
-    const acNum = bankDetails.account_number.trim()
-    const ifsc = bankDetails.ifsc_code.trim()
-    const bankName = bankDetails.bank_name.trim()
-    const holder = bankDetails.account_holder.trim()
-    const branch = bankDetails.branch_name.trim()
-
-    if (bankName.length > 100) {
-      setBankStatus({ type: 'error', message: 'Bank name must be at most 100 characters' })
-      return
-    }
-    if (holder.length > 100) {
-      setBankStatus({ type: 'error', message: 'Account holder must be at most 100 characters' })
-      return
-    }
-    if (acNum && !/^\d{9,18}$/.test(acNum)) {
-      setBankStatus({ type: 'error', message: 'Account number must be numeric, 9-18 digits' })
-      return
-    }
-    if (ifsc && !/^[A-Z]{4}0[A-Z0-9]{6}$/.test(ifsc)) {
-      setBankStatus({ type: 'error', message: 'IFSC code must match standard format (e.g. FDRL0001234)' })
-      return
-    }
-    if (branch.length > 100) {
-      setBankStatus({ type: 'error', message: 'Branch name must be at most 100 characters' })
-      return
-    }
-
-    setBankSaving(true)
-    try {
-      const res = await apiFetch('/api/admin/settings/bank', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          bank_name: bankName,
-          account_holder: holder,
-          account_number: acNum,
-          ifsc_code: ifsc,
-          branch_name: branch
-        })
-      })
-      const data = await res.json()
-      if (res.ok && data.success) {
-        setBankStatus({ type: 'success', message: 'Bank details saved successfully!' })
-        setTimeout(() => setBankStatus(prev => prev.type === 'success' ? { type: '', message: '' } : prev), 4000)
-      } else {
-        setBankStatus({ type: 'error', message: data.error || 'Failed to save bank details' })
-      }
-    } catch {
-      setBankStatus({ type: 'error', message: 'Network error. Please try again.' })
-    } finally {
-      setBankSaving(false)
-    }
-  }
-
-  // Statement
-  function handleFileSelect(e) {
-    const file = e.target.files[0]
-    if (file) {
-      setStatementFile(file)
-      setStatementFileName(file.name)
-    }
-  }
-
-  async function handleStatementUpload() {
-    if (!statementFile) return
-    setStatementLoading(true)
-    setStatementResult(null)
-    const fd = new FormData()
-    fd.append('statement', statementFile)
-    try {
-      const res = await apiFetch('/api/admin/verify/statement', { method: 'POST', body: fd })
-      const data = await res.json()
-      setStatementResult(data)
-      // Refresh registrations to pick up payment_status + flagged updates
-      loadRegistrations()
-    } catch {}
-    finally { setStatementLoading(false) }
-  }
-
-  async function handleBulkApprove(ids) {
-    if (!ids || ids.length === 0) return
-    try {
-      const res = await apiFetch('/api/admin/verify/bulk-approve', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ids })
-      })
-      const data = await res.json()
-      if (data.success) {
-        loadRegistrations()
-      }
-    } catch {}
-  }
-
-  // SMS
-  async function handleSmsVerify() {
-    if (!smsText.trim()) return
-    setSmsLoading(true)
-    setSmsResult(null)
-    try {
-      const res = await apiFetch('/api/admin/verify/sms', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ sms_text: smsText })
-      })
-      const data = await res.json()
-      setSmsResult(data)
-      if (data.success) loadRegistrations()
-    } catch {}
-    finally { setSmsLoading(false) }
-  }
+  }, [loggedIn, activeSection, loadSlugs])
 
   // Actions
   async function handleVerify(id) {
@@ -426,8 +155,6 @@ function Admin() {
 
     if (activeFilter === 'verified' && status !== 'verified') return false
     if (activeFilter === 'pending' && status !== 'pending') return false
-    if (activeFilter === 'flagged' && !r.flagged) return false
-    if (activeFilter === 'duplicate' && status !== 'duplicate_utr') return false
 
     if (activeTeamFilter !== 'all') {
       const teamVal = r.team_selected || 'General';
@@ -436,38 +163,14 @@ function Admin() {
 
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase()
-      return (r.name && r.name.toLowerCase().includes(q)) || (r.utr_number && r.utr_number.includes(q))
+      return (r.name && r.name.toLowerCase().includes(q)) || 
+             (r.department && r.department.toLowerCase().includes(q)) || 
+             (r.utr_number && r.utr_number.includes(q))
     }
     return true
   })
 
-  // Counts for stats
-  const verifiedCount = registrations.filter(r => r.verified).length
-  const pendingCount = registrations.filter(r => !r.verified).length
-  const flaggedCount = registrations.filter(r => r.flagged).length
-
-  // Matched rows (for Approve All Matched button)
-  const matchedRows = registrations.filter(r => getDisplayStatus(r) === 'matched')
-
-  // Statement result summary counts
-  const stMatchedCount = statementResult?.results?.filter(r => r.status === 'matched').length || 0
-  const stMismatchCount = statementResult?.results?.filter(r => r.status === 'amount_mismatch').length || 0
-  const stNotFoundCount = statementResult?.results?.filter(r => r.status === 'not_found').length || 0
-  const stDuplicateCount = statementResult?.results?.filter(r => r.status === 'duplicate_utr').length || 0
-
-  // Build duplicate lookup from registrations data (for inline warnings in table)
-  const utrDuplicateMap = {}
-  registrations.forEach(r => {
-    if (r.payment_status === 'duplicate_utr' && r.utr_number) {
-      const utr = r.utr_number.trim()
-      if (!utrDuplicateMap[utr]) utrDuplicateMap[utr] = []
-      utrDuplicateMap[utr].push({ id: r.id, name: r.name })
-    }
-  })
-
-  // ════════════════════════════════════
-  //  LOGIN
-  // ════════════════════════════════════
+  // ── Login Screen ──
   if (!loggedIn) {
     return (
       <div className="login-screen">
@@ -500,9 +203,7 @@ function Admin() {
     )
   }
 
-  // ════════════════════════════════════
-  //  DASHBOARD
-  // ════════════════════════════════════
+  // ── Dashboard ──
   return (
     <div className="admin-layout">
       {/* Sidebar */}
@@ -540,10 +241,7 @@ function Admin() {
           <div>
             <h1>Dashboard</h1>
             <p className="admin-header__stats">
-              {registrations.length} registrations &middot; {verifiedCount} verified &middot; {pendingCount} pending
-              {flaggedCount > 0 && (
-                <> &middot; <span style={{ color: '#DC2626' }}>{flaggedCount} flagged</span></>
-              )}
+              {registrations.length} registrations
             </p>
           </div>
         </div>
@@ -551,76 +249,11 @@ function Admin() {
         {/* ── Registrations ── */}
         {activeSection === 'registrations' && (
           <div className="section">
-            {/* Section header with Export CSV + Approve All Matched */}
             <div className="section-header">
               <h2>Registrations</h2>
-              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                {matchedRows.length > 0 && (
-                  <button
-                    className="btn btn--action"
-                    style={{ background: '#DCFCE7', color: '#15803D', borderColor: '#86EFAC', padding: '7px 14px', fontSize: 12 }}
-                    onClick={() => handleBulkApprove(matchedRows.map(r => r.id))}
-                  >
-                    Approve All Matched ({matchedRows.length})
-                  </button>
-                )}
-                <button className="btn btn--primary btn--export" onClick={handleExportCSV}>
-                  Export CSV
-                </button>
-              </div>
-            </div>
-
-            {/* Statement Upload Strip */}
-            <div className="statement-strip">
-              <input
-                type="file"
-                ref={fileInputRef}
-                accept=".csv,.xlsx,.xls"
-                style={{ display: 'none' }}
-                onChange={handleFileSelect}
-              />
-              <button
-                className="statement-strip__file-btn"
-                onClick={() => fileInputRef.current?.click()}
-              >
-                📄 Choose Statement
+              <button className="btn btn--primary btn--export" onClick={handleExportCSV}>
+                Export CSV
               </button>
-              <span className="statement-strip__filename">
-                {statementFileName || 'No file selected'}
-              </span>
-              <button
-                className="btn btn--primary"
-                onClick={handleStatementUpload}
-                disabled={!statementFile || statementLoading}
-              >
-                {statementLoading ? <><span className="spinner" /> Processing...</> : 'Upload & Verify'}
-              </button>
-
-              {/* Inline result summary after upload */}
-              {statementResult && (
-                <div className="statement-strip__summary">
-                  {stMatchedCount > 0 && (
-                    <span className="statement-strip__summary-item" style={{ color: '#15803D' }}>
-                      {stMatchedCount} matched
-                    </span>
-                  )}
-                  {stMismatchCount > 0 && (
-                    <span className="statement-strip__summary-item" style={{ color: '#92400E' }}>
-                      {stMismatchCount} mismatched
-                    </span>
-                  )}
-                  {stNotFoundCount > 0 && (
-                    <span className="statement-strip__summary-item" style={{ color: '#991B1B' }}>
-                      {stNotFoundCount} not found
-                    </span>
-                  )}
-                  {stDuplicateCount > 0 && (
-                    <span className="statement-strip__summary-item" style={{ color: '#5B21B6' }}>
-                      {stDuplicateCount} duplicate
-                    </span>
-                  )}
-                </div>
-              )}
             </div>
 
             {/* Filter Bar */}
@@ -628,12 +261,12 @@ function Admin() {
               <input
                 type="text"
                 className="filter-bar__search"
-                placeholder="Search by name or UTR..."
+                placeholder="Search by name, dept, UTR..."
                 value={searchQuery}
                 onChange={e => setSearchQuery(e.target.value)}
               />
               <div className="filter-toggle">
-                {['all', 'verified', 'pending', 'flagged', 'duplicate'].map(v => (
+                {['all', 'verified', 'pending'].map(v => (
                   <button
                     key={v}
                     className={`filter-toggle__btn ${activeFilter === v ? 'filter-toggle__btn--active' : ''}`}
@@ -683,22 +316,9 @@ function Admin() {
                       const displayStatus = getDisplayStatus(r)
                       const badgeInfo = STATUS_BADGE_MAP[displayStatus] || STATUS_BADGE_MAP.pending
 
-                      // Get duplicate names for inline warning
-                      let duplicateNames = []
-                      if (displayStatus === 'duplicate_utr' && r.utr_number) {
-                        const utr = r.utr_number.trim()
-                        const dupes = utrDuplicateMap[utr] || []
-                        duplicateNames = dupes.filter(d => d.id !== r.id).map(d => d.name)
-                      }
-
                       return (
-                        <tr key={r.id} style={displayStatus === 'duplicate_utr' ? { background: '#FAF5FF' } : undefined}>
-                          <td style={{ fontWeight: 500 }}>
-                            {r.name}
-                            {r.flagged && (
-                              <span className="flag-indicator" title="Flagged — UTR not found in statement">⚑</span>
-                            )}
-                          </td>
+                        <tr key={r.id}>
+                          <td style={{ fontWeight: 500 }}>{r.name}</td>
                           <td>{r.department}</td>
                           <td style={{ fontWeight: 500 }}>{r.team_selected || 'General'}</td>
                           <td>{r.year}</td>
@@ -713,33 +333,12 @@ function Admin() {
                           </td>
                           <td>
                             <div className="actions">
-                              {displayStatus === 'matched' && (
-                                <button
-                                  className="btn btn--action"
-                                  style={{ background: '#F0FDF4', color: '#15803D', borderColor: '#86EFAC' }}
-                                  onClick={() => handleBulkApprove([r.id])}
-                                >
-                                  Approve
-                                </button>
-                              )}
-                              {displayStatus === 'verified' && (
+                              {displayStatus === 'verified' ? (
                                 <button className="btn btn--action" onClick={() => handleUnverify(r.id)}>Unverify</button>
-                              )}
-                              {(displayStatus === 'pending' || displayStatus === 'not_found' || displayStatus === 'amount_mismatch') && (
-                                <button className="btn btn--action" onClick={() => handleVerify(r.id)}>Verify</button>
-                              )}
-                              {displayStatus === 'duplicate_utr' && (
+                              ) : (
                                 <button className="btn btn--action" onClick={() => handleVerify(r.id)}>Verify</button>
                               )}
                               <button className="btn btn--danger-action" onClick={() => handleDelete(r.id)}>Delete</button>
-                              {r.screenshot_url && (
-                                <a href={r.screenshot_url} target="_blank" rel="noopener noreferrer" className="btn btn--action">View</a>
-                              )}
-                              {displayStatus === 'duplicate_utr' && duplicateNames.length > 0 && (
-                                <span style={{ fontSize: 11, color: '#5B21B6', fontStyle: 'italic', marginLeft: 2 }}>
-                                  Dup w/ {duplicateNames.join(', ')}
-                                </span>
-                              )}
                             </div>
                           </td>
                         </tr>
@@ -752,10 +351,11 @@ function Admin() {
           </div>
         )}
 
+        {/* ── Team Links ── */}
         {activeSection === 'team-links' && (
           <div className="section">
             <div className="section-header">
-              <h2>Team Links &amp; Security Settings</h2>
+              <h2>Team Links</h2>
             </div>
             <div className="table-wrapper">
               <table>
@@ -803,239 +403,7 @@ function Admin() {
             </div>
           </div>
         )}
-
-        {/* ── QR Manager ── */}
-        {activeSection === 'qr' && (
-          <div className="section">
-            {!qrIntact && (
-              <div className="alert alert--error alert--warning-banner" style={{ marginBottom: 24, fontSize: 14 }}>
-                <strong>WARNING:</strong> QR file integrity check failed. The file may have been tampered with. Re-upload immediately.
-              </div>
-            )}
-            <div className="admin-card">
-              <h3 className="admin-card__heading">QR Code Manager</h3>
-              <div className="qr-admin-row">
-                <div className="qr-admin-row__preview">
-                  {qrUrl ? (
-                    <img src={qrUrl + '?t=' + Date.now()} alt="Payment QR" />
-                  ) : (
-                    <div className="qr-admin-row__placeholder">No QR</div>
-                  )}
-                </div>
-                <div className="qr-admin-row__upload">
-                  <label htmlFor="qr-upload">Upload New QR Code</label>
-                  <input type="file" id="qr-upload" accept="image/*" onChange={handleQRFileSelect} />
-                  <p className="helper-text" style={{ marginTop: 8 }}>
-                    This QR will be shown on the registration page for students to scan and pay.
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            <div className="admin-card">
-              <h3 className="admin-card__heading">Registration Fee</h3>
-              <div style={{ display: 'flex', gap: 12, alignItems: 'flex-end', flexWrap: 'wrap' }}>
-                <div style={{ flex: 1, minWidth: 140 }}>
-                  <label htmlFor="fee-input">Fee Amount (₹)</label>
-                  <input
-                    type="number"
-                    id="fee-input"
-                    value={feeInput}
-                    onChange={e => setFeeInput(e.target.value)}
-                    placeholder="349"
-                    min="1"
-                    style={{ width: '100%' }}
-                  />
-                  <p className="helper-text" style={{ marginTop: 4 }}>
-                    This amount is used to verify payments in statement uploads. Current: ₹{registrationFee}
-                  </p>
-                </div>
-                <button
-                  className="btn btn--primary"
-                  style={{ width: 'auto', padding: '10px 24px', marginBottom: 28 }}
-                  onClick={handleFeeSave}
-                  disabled={feeSaving || !feeInput || parseInt(feeInput, 10) === registrationFee}
-                >
-                  {feeSaving ? <><span className="spinner" /> Saving...</> : 'Save Fee'}
-                </button>
-              </div>
-            </div>
-
-            <div className="admin-card" style={{ marginTop: 24 }}>
-              <h3 className="admin-card__heading">Bank Transfer Details</h3>
-              <p className="helper-text" style={{ marginBottom: 16 }}>
-                Provide the organization's bank details. Leave these fields empty to hide/disable the Bank Transfer option on the public registration portal.
-              </p>
-              {bankStatus.message && (
-                <div className={`alert alert--${bankStatus.type === 'error' ? 'error' : 'success'}`} style={{ marginBottom: 16 }}>
-                  {bankStatus.message}
-                </div>
-              )}
-              <form onSubmit={handleBankSave}>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px', marginBottom: '16px' }}>
-                  <div className="form-group" style={{ marginBottom: 0 }}>
-                    <label htmlFor="bank-name">Bank Name</label>
-                    <input
-                      type="text"
-                      id="bank-name"
-                      value={bankDetails.bank_name}
-                      onChange={e => setBankDetails(prev => ({ ...prev, bank_name: e.target.value }))}
-                      placeholder="e.g. Federal Bank"
-                      maxLength={100}
-                    />
-                  </div>
-                  <div className="form-group" style={{ marginBottom: 0 }}>
-                    <label htmlFor="account-holder">Account Holder Name</label>
-                    <input
-                      type="text"
-                      id="account-holder"
-                      value={bankDetails.account_holder}
-                      onChange={e => setBankDetails(prev => ({ ...prev, account_holder: e.target.value }))}
-                      placeholder="e.g. SEDS CUSAT"
-                      maxLength={100}
-                    />
-                  </div>
-                </div>
-
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '16px', marginBottom: '16px' }}>
-                  <div className="form-group" style={{ marginBottom: 0 }}>
-                    <label htmlFor="account-number">Account Number</label>
-                    <input
-                      type="text"
-                      id="account-number"
-                      value={bankDetails.account_number}
-                      onChange={e => setBankDetails(prev => ({ ...prev, account_number: e.target.value }))}
-                      placeholder="9 to 18 digits"
-                      maxLength={18}
-                    />
-                  </div>
-                  <div className="form-group" style={{ marginBottom: 0 }}>
-                    <label htmlFor="ifsc-code">IFSC Code</label>
-                    <input
-                      type="text"
-                      id="ifsc-code"
-                      value={bankDetails.ifsc_code}
-                      onChange={e => setBankDetails(prev => ({ ...prev, ifsc_code: e.target.value.toUpperCase() }))}
-                      placeholder="e.g. FDRL0001234"
-                      maxLength={11}
-                    />
-                  </div>
-                  <div className="form-group" style={{ marginBottom: 0 }}>
-                    <label htmlFor="branch-name">Branch Name</label>
-                    <input
-                      type="text"
-                      id="branch-name"
-                      value={bankDetails.branch_name}
-                      onChange={e => setBankDetails(prev => ({ ...prev, branch_name: e.target.value }))}
-                      placeholder="e.g. CUSAT Campus"
-                      maxLength={100}
-                    />
-                  </div>
-                </div>
-
-                <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 20 }}>
-                  <button
-                    type="submit"
-                    className="btn btn--primary"
-                    style={{ width: 'auto', padding: '10px 24px' }}
-                    disabled={bankSaving}
-                  >
-                    {bankSaving ? <><span className="spinner" /> Saving...</> : 'Save Bank Details'}
-                  </button>
-                </div>
-              </form>
-            </div>
-
-            <div className="admin-card" style={{ marginTop: 24 }}>
-              <h3 className="admin-card__heading">QR Code Change Audit Log</h3>
-              <div className="table-container">
-                <table className="admin-table">
-                  <thead>
-                    <tr>
-                      <th>Date</th>
-                      <th>IP Address</th>
-                      <th>Previous File</th>
-                      <th>New File</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {qrAuditLogs.length === 0 ? (
-                      <tr>
-                        <td colSpan="4" style={{ textAlign: 'center', color: 'var(--text-muted)' }}>
-                          No changes recorded yet.
-                        </td>
-                      </tr>
-                    ) : (
-                      qrAuditLogs.map(log => (
-                        <tr key={log.id}>
-                          <td>{new Date(log.changed_at).toLocaleString()}</td>
-                          <td><code>{log.ip_address}</code></td>
-                          <td style={{ color: 'var(--text-muted)', fontSize: 13 }}>
-                            {log.previous_filename || 'Initial Upload'}
-                          </td>
-                          <td style={{ fontWeight: 500, fontSize: 13 }}>
-                            {log.new_filename}
-                          </td>
-                        </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* ── SMS ── */}
-        {activeSection === 'sms' && (
-          <div className="section">
-            <div className="admin-card">
-              <h3 className="admin-card__heading">SMS Verification</h3>
-              <div className="form-group">
-                <label htmlFor="sms-text">Paste SMS Text</label>
-                <textarea
-                  id="sms-text"
-                  value={smsText}
-                  onChange={e => setSmsText(e.target.value)}
-                  placeholder="Paste the full SMS text containing the UTR or UPI Ref No..."
-                />
-              </div>
-              <button
-                className="btn btn--primary"
-                style={{ width: 'auto', padding: '10px 24px' }}
-                onClick={handleSmsVerify}
-                disabled={!smsText.trim() || smsLoading}
-              >
-                {smsLoading ? <><span className="spinner" /> Verifying...</> : 'Verify from SMS'}
-              </button>
-              {smsResult && (
-                <div className={`alert ${smsResult.success ? 'alert--success' : 'alert--error'}`} style={{ marginTop: 16 }}>
-                  {smsResult.success
-                    ? `Verified: ${smsResult.matched_name}`
-                    : smsResult.error || 'Verification failed'}
-                </div>
-              )}
-            </div>
-          </div>
-        )}
       </main>
-
-      {showQRConfirm && (
-        <div className="modal-overlay">
-          <div className="modal-content">
-            <h4>Confirm QR Code Change</h4>
-            <p>You are about to change the payment QR code. All future payments will go to the new UPI ID. Are you sure?</p>
-            <div className="modal-actions">
-              <button className="btn btn--outline" onClick={cancelQRUpload} disabled={qrUploading}>
-                Cancel
-              </button>
-              <button className="btn btn--primary" onClick={confirmQRUpload} disabled={qrUploading}>
-                {qrUploading ? 'Uploading...' : 'Yes, Change QR'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   )
 }

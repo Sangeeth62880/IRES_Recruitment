@@ -1,49 +1,12 @@
 const express = require('express');
-const multer = require('multer');
-const path = require('path');
 const db = require('../db');
 const { VALID_TEAMS, TEAM_LABELS } = require('../../shared/constants.json');
 
 const router = express.Router();
 const VALID_DISPLAY_NAMES = Object.values(TEAM_LABELS);
 
-// Configure multer for screenshot uploads
-const screenshotStorage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    cb(null, path.join(__dirname, '..', 'data', 'uploads', 'screenshots'));
-  },
-  filename: (req, file, cb) => {
-    const ext = path.extname(file.originalname);
-    const utr = req.body.utr_number || 'unknown';
-    const timestamp = Date.now();
-    cb(null, `${utr}_${timestamp}${ext}`);
-  }
-});
-
-const uploadScreenshot = multer({
-  storage: screenshotStorage,
-  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB
-  fileFilter: (req, file, cb) => {
-    if (file.mimetype.startsWith('image/')) {
-      cb(null, true);
-    } else {
-      cb(new Error('Only image files are allowed'));
-    }
-  }
-});
-
 // POST /api/register
-router.post('/api/register', (req, res, next) => {
-  uploadScreenshot.single('screenshot')(req, res, (err) => {
-    if (err) {
-      if (err instanceof multer.MulterError && err.code === 'LIMIT_FILE_SIZE') {
-        return res.status(400).json({ success: false, error: 'Payment screenshot exceeds the 5MB size limit' });
-      }
-      return res.status(400).json({ success: false, error: err.message || 'Error uploading file' });
-    }
-    next();
-  });
-}, (req, res) => {
+router.post('/api/register', (req, res) => {
   try {
     const { name, department, year, team_selected, utr_number } = req.body;
 
@@ -69,14 +32,6 @@ router.post('/api/register', (req, res, next) => {
       });
     }
 
-    // Enforce screenshot is not optional
-    if (!req.file) {
-      return res.status(400).json({
-        success: false,
-        error: 'Payment screenshot is required'
-      });
-    }
-
     // Validate UTR: exactly 12 digits
     if (!/^\d{12}$/.test(utr_number.trim())) {
       return res.status(400).json({
@@ -84,8 +39,6 @@ router.post('/api/register', (req, res, next) => {
         error: 'UTR number must be exactly 12 digits (numeric only)'
       });
     }
-
-    const screenshotPath = req.file.filename;
 
     const stmt = db.prepare(`
       INSERT INTO registrations (name, department, year, team_selected, email, phone, utr_number, screenshot_path)
@@ -100,45 +53,13 @@ router.post('/api/register', (req, res, next) => {
       null,      // email
       null,      // phone
       utr_number.trim(),
-      screenshotPath
+      null       // screenshot_path is now null
     );
 
     return res.json({ success: true, id: info.lastInsertRowid });
   } catch (err) {
     console.error('Registration error:', err);
     return res.status(500).json({ success: false, error: 'Server error during registration' });
-  }
-});
-
-// GET /api/settings/qr
-router.get('/api/settings/qr', (req, res) => {
-  const row = db.prepare("SELECT value FROM settings WHERE key = 'qr_path'").get();
-  if (row && row.value) {
-    return res.json({ qr_url: `/uploads/qr/${row.value}` });
-  }
-  return res.json({ qr_url: null });
-});
-
-// GET /api/settings/fee (public — shown on registration form)
-router.get('/api/settings/fee', (req, res) => {
-  const row = db.prepare("SELECT value FROM settings WHERE key = 'registration_fee'").get();
-  const fee = row && row.value ? parseInt(row.value, 10) : 349;
-  return res.json({ fee });
-});
-
-// GET /api/settings/bank (public — shown on registration form if populated)
-router.get('/api/settings/bank', (req, res) => {
-  try {
-    const fields = ['bank_name', 'account_holder', 'account_number', 'ifsc_code', 'branch_name'];
-    const bankDetails = {};
-    fields.forEach(field => {
-      const row = db.prepare("SELECT value FROM settings WHERE key = ?").get(field);
-      bankDetails[field] = row ? row.value : '';
-    });
-    return res.json(bankDetails);
-  } catch (err) {
-    console.error('Error fetching bank settings:', err);
-    return res.status(500).json({ success: false, error: 'Server error' });
   }
 });
 

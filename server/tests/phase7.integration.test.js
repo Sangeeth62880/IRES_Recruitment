@@ -55,31 +55,21 @@ async function run() {
 
   // Step 1: Register
   await test('Step 1: Submit a registration', async () => {
-    const formData = new FormData();
-    formData.append('name', 'Integration Test User');
-    formData.append('department', 'CSE');
-    formData.append('year', '2nd');
-    formData.append('team_selected', 'Technical');
-    formData.append('email', 'integration@test.com');
-    formData.append('phone', '9876543210');
-    formData.append('utr_number', TEST_UTR);
+    const payload = {
+      name: 'Integration Test User',
+      department: 'CSE',
+      year: '2nd',
+      team_selected: 'Technical',
+      email: 'integration@test.com',
+      phone: '9876543210',
+      utr_number: TEST_UTR
+    };
 
-    // Add a dummy screenshot
-    const pngBuffer = Buffer.from([
-      0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a,
-      0x00, 0x00, 0x00, 0x0d, 0x49, 0x48, 0x44, 0x52,
-      0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01,
-      0x08, 0x02, 0x00, 0x00, 0x00, 0x90, 0x77, 0x53,
-      0xde, 0x00, 0x00, 0x00, 0x0c, 0x49, 0x44, 0x41,
-      0x54, 0x08, 0xd7, 0x63, 0xf8, 0xcf, 0xc0, 0x00,
-      0x00, 0x00, 0x02, 0x00, 0x01, 0xe2, 0x21, 0xbc,
-      0x33, 0x00, 0x00, 0x00, 0x00, 0x49, 0x45, 0x4e,
-      0x44, 0xae, 0x42, 0x60, 0x82
-    ]);
-    const blob = new Blob([pngBuffer], { type: 'image/png' });
-    formData.append('screenshot', blob, 'test.png');
-
-    const res = await fetch(`${BASE}/api/register`, { method: 'POST', body: formData });
+    const res = await fetch(`${BASE}/api/register`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
     const data = await res.json();
     assert(data.success === true, `Registration failed: ${JSON.stringify(data)}`);
     registrationId = data.id;
@@ -98,28 +88,13 @@ async function run() {
     assert(found.verified === false, `Expected verified=false, got ${found.verified}`);
   });
 
-  // Step 3: Verify via statement upload
-  await test('Step 3: Verify via CSV statement upload', async () => {
-    const csvContent = `Date,Description,Credit\n2024-01-15,UPI/CR/${TEST_UTR}/IntegrationPayer,349\n`;
-    const blob = new Blob([csvContent], { type: 'text/csv' });
-    const formData = new FormData();
-    formData.append('statement', blob, 'statement.csv');
-
-    const res = await adminFetch(`${BASE}/api/admin/verify/statement`, {
-      method: 'POST',
-      body: formData
+  // Step 3: Verify manually
+  await test('Step 3: Verify registration manually', async () => {
+    const res = await adminFetch(`${BASE}/api/admin/registrations/${registrationId}/verify`, {
+      method: 'PATCH'
     });
     const data = await res.json();
-    assert(data.matched >= 1, `Expected matched >= 1, got ${data.matched}`);
-
-    // Call bulk-approve explicitly
-    const approveRes = await adminFetch(`${BASE}/api/admin/verify/bulk-approve`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ids: [registrationId] })
-    });
-    const approveData = await approveRes.json();
-    assert(approveData.success === true, 'Expected bulk approval success');
+    assert(data.success === true, 'Expected manual verification success');
   });
 
   // Step 4: Confirm verified true

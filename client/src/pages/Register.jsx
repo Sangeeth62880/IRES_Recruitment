@@ -19,8 +19,6 @@ function AnimatedCheck() {
 
 function Register() {
   const { team } = useParams()
-  const [qrUrl, setQrUrl] = useState(null)
-  const [fee, setFee] = useState(349)
   const [formData, setFormData] = useState({
     name: '',
     department: '',
@@ -30,45 +28,10 @@ function Register() {
   })
   const [isValidating, setIsValidating] = useState(false)
   const [isValidCode, setIsValidCode] = useState(true)
-  const [screenshot, setScreenshot] = useState(null)
-  const [previewUrl, setPreviewUrl] = useState(null)
   const [errors, setErrors] = useState({})
   const [submitting, setSubmitting] = useState(false)
   const [submitted, setSubmitted] = useState(false)
   const [serverError, setServerError] = useState('')
-  const [bankDetails, setBankDetails] = useState(null)
-  const [paymentMethod, setPaymentMethod] = useState('upi')
-  const [copiedField, setCopiedField] = useState(null)
-
-  useEffect(() => {
-    fetch('/api/settings/qr')
-      .then(r => r.json())
-      .then(data => { if (data.qr_url) setQrUrl(data.qr_url) })
-      .catch(() => {})
-
-    fetch('/api/settings/fee')
-      .then(r => r.json())
-      .then(data => { if (data.fee !== undefined) setFee(data.fee) })
-      .catch(() => {})
-
-    fetch('/api/settings/bank')
-      .then(r => r.json())
-      .then(data => {
-        if (data && data.bank_name && data.account_holder && data.account_number && data.ifsc_code) {
-          setBankDetails(data)
-        }
-      })
-      .catch(() => {})
-  }, [])
-
-  function handleCopy(text, field) {
-    navigator.clipboard.writeText(text)
-      .then(() => {
-        setCopiedField(field)
-        setTimeout(() => setCopiedField(null), 2000)
-      })
-      .catch(() => {})
-  }
 
   useEffect(() => {
     if (team) {
@@ -103,26 +66,6 @@ function Register() {
     }
   }
 
-  function handleFileChange(e) {
-    const file = e.target.files[0]
-    if (file) {
-      if (file.size > 5 * 1024 * 1024) {
-        setErrors(prev => ({ ...prev, screenshot: 'File size exceeds the 5MB limit. Please upload a smaller image.' }))
-        setScreenshot(null)
-        setPreviewUrl(null)
-        return
-      }
-      setScreenshot(file)
-      setPreviewUrl(URL.createObjectURL(file))
-      if (errors.screenshot) {
-        setErrors(prev => { const n = { ...prev }; delete n.screenshot; return n })
-      }
-    } else {
-      setScreenshot(null)
-      setPreviewUrl(null)
-    }
-  }
-
   function validate() {
     const errs = {}
     if (!formData.name.trim()) errs.name = 'Full name is required'
@@ -130,12 +73,9 @@ function Register() {
     if (!formData.team_selected) errs.team_selected = 'Select your team'
     if (!formData.year) errs.year = 'Select your year'
     if (!formData.utr_number.trim()) {
-      errs.utr_number = 'UTR number is required'
+      errs.utr_number = 'UTR / UPI Reference number is required'
     } else if (!/^\d{12}$/.test(formData.utr_number.trim())) {
       errs.utr_number = 'UTR must be exactly 12 digits'
-    }
-    if (!screenshot) {
-      errs.screenshot = 'Payment screenshot is required'
     }
     return errs
   }
@@ -147,12 +87,19 @@ function Register() {
     if (Object.keys(errs).length > 0) { setErrors(errs); return }
 
     setSubmitting(true)
-    const fd = new FormData()
-    Object.entries(formData).forEach(([key, val]) => fd.append(key, val.trim()))
-    if (screenshot) fd.append('screenshot', screenshot)
-
     try {
-      const res = await fetch('/api/register', { method: 'POST', body: fd })
+      const payload = {
+        name: formData.name.trim(),
+        department: formData.department.trim(),
+        year: formData.year.trim(),
+        team_selected: formData.team_selected.trim(),
+        utr_number: formData.utr_number.trim()
+      }
+      const res = await fetch('/api/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      })
       const data = await res.json()
       if (data.success) {
         setSubmitted(true)
@@ -200,7 +147,7 @@ function Register() {
     )
   }
 
-  // ── Invalid Team link or passcode ──
+  // ── Invalid Team link ──
   if (!isValidCode) {
     return <NotFound />
   }
@@ -220,150 +167,6 @@ function Register() {
           <p className="card-header__subtitle">Innovation Research and Exploration of Space</p>
           <hr className="card-header__rule" />
         </div>
-
-        {/* Payment Options Switcher */}
-        {bankDetails && (
-          <div className="payment-tabs" style={{ display: 'flex', background: 'rgba(15, 23, 42, 0.04)', padding: '4px', borderRadius: '12px', marginBottom: '24px', position: 'relative' }}>
-            <button
-              type="button"
-              className={`payment-tab ${paymentMethod === 'upi' ? 'active' : ''}`}
-              style={{
-                flex: 1,
-                padding: '10px 16px',
-                border: 'none',
-                background: paymentMethod === 'upi' ? '#FFFFFF' : 'transparent',
-                color: paymentMethod === 'upi' ? 'var(--blue)' : 'var(--text-muted)',
-                borderRadius: '8px',
-                fontSize: '14px',
-                fontWeight: '600',
-                cursor: 'pointer',
-                transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
-                boxShadow: paymentMethod === 'upi' ? '0 2px 8px rgba(11, 37, 69, 0.08)' : 'none'
-              }}
-              onClick={() => setPaymentMethod('upi')}
-            >
-              UPI Payment
-            </button>
-            <button
-              type="button"
-              className={`payment-tab ${paymentMethod === 'bank' ? 'active' : ''}`}
-              style={{
-                flex: 1,
-                padding: '10px 16px',
-                border: 'none',
-                background: paymentMethod === 'bank' ? '#FFFFFF' : 'transparent',
-                color: paymentMethod === 'bank' ? 'var(--blue)' : 'var(--text-muted)',
-                borderRadius: '8px',
-                fontSize: '14px',
-                fontWeight: '600',
-                cursor: 'pointer',
-                transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
-                boxShadow: paymentMethod === 'bank' ? '0 2px 8px rgba(11, 37, 69, 0.08)' : 'none'
-              }}
-              onClick={() => setPaymentMethod('bank')}
-            >
-              Bank Transfer
-            </button>
-          </div>
-        )}
-
-        {(!bankDetails || paymentMethod === 'upi') ? (
-          <div className="qr-section">
-            <p className="qr-section__label">Registration Fee</p>
-            {qrUrl ? (
-              <>
-                <div className="qr-section__frame">
-                  <img src={qrUrl} alt="Payment QR Code" className="qr-section__image" />
-                </div>
-                <p className="qr-section__amount">&#8377;{fee}</p>
-              </>
-            ) : (
-              <div className="qr-section__placeholder">QR not set</div>
-            )}
-          </div>
-        ) : (
-          <div className="bank-details-card" style={{
-            background: '#FFFFFF',
-            border: '1px solid var(--border)',
-            borderRadius: 'var(--radius-lg)',
-            padding: '20px',
-            marginBottom: '24px',
-            boxShadow: '0 4px 12px rgba(15, 23, 42, 0.03)',
-            textAlign: 'left'
-          }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', borderBottom: '1px solid var(--blue-light)', paddingBottom: '12px' }}>
-              <span style={{ fontSize: '11px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-subtle)' }}>Payment Mode</span>
-              <span style={{ fontSize: '18px', fontWeight: '850', color: 'var(--blue)' }}>&#8377;{fee}</span>
-            </div>
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
-                <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Bank</span>
-                <span style={{ fontSize: '14px', fontWeight: '600', color: 'var(--text)' }}>{bankDetails.bank_name}</span>
-              </div>
-              
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
-                <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Account Name</span>
-                <span style={{ fontSize: '14px', fontWeight: '600', color: 'var(--text)' }}>{bankDetails.account_holder}</span>
-              </div>
-
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Account Number</span>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <span style={{ fontSize: '14px', fontFamily: "'Courier New', monospace", fontWeight: '700', color: 'var(--text)' }}>{bankDetails.account_number}</span>
-                  <button
-                    type="button"
-                    onClick={() => handleCopy(bankDetails.account_number, 'account_number')}
-                    style={{
-                      padding: '4px 8px',
-                      fontSize: '11px',
-                      background: copiedField === 'account_number' ? 'var(--success)' : 'var(--blue-light)',
-                      color: copiedField === 'account_number' ? '#FFFFFF' : 'var(--blue)',
-                      border: 'none',
-                      borderRadius: '4px',
-                      cursor: 'pointer',
-                      fontWeight: '600',
-                      transition: 'all 0.15s ease'
-                    }}
-                  >
-                    {copiedField === 'account_number' ? 'Copied!' : 'Copy'}
-                  </button>
-                </div>
-              </div>
-
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>IFSC Code</span>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <span style={{ fontSize: '14px', fontFamily: "'Courier New', monospace", fontWeight: '700', color: 'var(--text)' }}>{bankDetails.ifsc_code}</span>
-                  <button
-                    type="button"
-                    onClick={() => handleCopy(bankDetails.ifsc_code, 'ifsc_code')}
-                    style={{
-                      padding: '4px 8px',
-                      fontSize: '11px',
-                      background: copiedField === 'ifsc_code' ? 'var(--success)' : 'var(--blue-light)',
-                      color: copiedField === 'ifsc_code' ? '#FFFFFF' : 'var(--blue)',
-                      border: 'none',
-                      borderRadius: '4px',
-                      cursor: 'pointer',
-                      fontWeight: '600',
-                      transition: 'all 0.15s ease'
-                    }}
-                  >
-                    {copiedField === 'ifsc_code' ? 'Copied!' : 'Copy'}
-                  </button>
-                </div>
-              </div>
-
-              {bankDetails.branch_name && (
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
-                  <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Branch</span>
-                  <span style={{ fontSize: '14px', fontWeight: '500', color: 'var(--text)' }}>{bankDetails.branch_name}</span>
-                </div>
-              )}
-            </div>
-          </div>
-        )}
 
         {serverError && <div className="alert alert--error">{serverError}</div>}
 
@@ -406,32 +209,9 @@ function Register() {
             <label htmlFor="reg-utr">UTR / UPI Reference Number</label>
             <input type="text" id="reg-utr" name="utr_number" value={formData.utr_number} onChange={handleChange} placeholder="12-digit UTR number" maxLength={12} />
             <p className="helper-text">
-              {(!bankDetails || paymentMethod === 'upi')
-                ? 'Find this in GPay → tap the transaction → UPI Ref No'
-                : 'Find the 12-digit UTR in your bank receipt or transaction confirmation'}
+              Enter the 12-digit UTR/UPI Reference number from your payment confirmation.
             </p>
             {errors.utr_number && <p className="error-text">{errors.utr_number}</p>}
-          </div>
-
-          <div className="form-group">
-            <label>Payment Screenshot</label>
-            <div className="drop-zone">
-              <input type="file" className="drop-zone__input" accept="image/*" onChange={handleFileChange} id="reg-screenshot" />
-              {!previewUrl ? (
-                <>
-                  <p className="drop-zone__text">Upload payment screenshot</p>
-                  <p className="drop-zone__helper">Required (PNG, JPG, or JPEG up to 5MB)</p>
-                </>
-              ) : (
-                <>
-                  <div className="drop-zone__preview">
-                    <img src={previewUrl} alt="Preview" />
-                  </div>
-                  <p className="drop-zone__filename">{screenshot?.name}</p>
-                </>
-              )}
-            </div>
-            {errors.screenshot && <p className="error-text">{errors.screenshot}</p>}
           </div>
 
           <button type="submit" className="btn btn--primary" disabled={submitting}>
