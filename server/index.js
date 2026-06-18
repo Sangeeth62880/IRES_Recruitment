@@ -8,6 +8,7 @@ const session = require('express-session');
 const crypto = require('crypto');
 
 const db = require('./db');
+const SqliteSessionStore = require('./sessionStore');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -34,6 +35,7 @@ app.use(express.urlencoded({ extended: true }));
 
 // Session middleware
 app.use(session({
+  store: new SqliteSessionStore(db),
   secret: process.env.SESSION_SECRET || crypto.randomBytes(32).toString('hex'),
   resave: false,
   saveUninitialized: false,

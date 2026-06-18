@@ -43,6 +43,12 @@ db.exec(`
     new_filename TEXT
   );
 
+  CREATE TABLE IF NOT EXISTS sessions (
+    sid TEXT PRIMARY KEY,
+    expired INTEGER NOT NULL,
+    sess TEXT NOT NULL
+  );
+
   CREATE UNIQUE INDEX IF NOT EXISTS settings_key_unique ON settings(key);
 `);
 
