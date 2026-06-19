@@ -5,6 +5,8 @@
  */
 
 const db = require('../db');
+const path = require('path');
+const fs = require('fs');
 
 const BASE = 'http://localhost:3001';
 let passed = 0;
@@ -25,6 +27,20 @@ function assert(condition, message) {
   if (!condition) throw new Error(message || 'Assertion failed');
 }
 
+function makeFormData(payload, includeScreenshot = true) {
+  const fd = new FormData();
+  for (const [key, value] of Object.entries(payload)) {
+    if (value !== undefined && value !== null) {
+      fd.append(key, String(value));
+    }
+  }
+  if (includeScreenshot) {
+    const blob = new Blob([Buffer.from('dummy image content')], { type: 'image/png' });
+    fd.append('screenshot', blob, 'test.png');
+  }
+  return fd;
+}
+
 async function run() {
   console.log('\n--- Phase 2 Tests: Registration API Endpoints ---\n');
 
@@ -42,8 +58,7 @@ async function run() {
 
     const res = await fetch(`${BASE}/api/register`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
+      body: makeFormData(payload)
     });
     const data = await res.json();
     assert(data.success === true, `Expected success=true, got ${JSON.stringify(data)}`);
@@ -62,8 +77,7 @@ async function run() {
 
     const res = await fetch(`${BASE}/api/register`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
+      body: makeFormData(payload)
     });
     const data = await res.json();
     assert(data.success === false, `Expected success=false, got ${JSON.stringify(data)}`);
@@ -81,8 +95,7 @@ async function run() {
 
     const res = await fetch(`${BASE}/api/register`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
+      body: makeFormData(payload)
     });
     const data = await res.json();
     assert(data.success === false, `Expected success=false, got ${JSON.stringify(data)}`);
@@ -100,8 +113,7 @@ async function run() {
 
     const res = await fetch(`${BASE}/api/register`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
+      body: makeFormData(payload)
     });
     const data = await res.json();
     assert(data.success === true, `Expected success=true, got ${JSON.stringify(data)}`);
@@ -125,8 +137,7 @@ async function run() {
 
     const res = await fetch(`${BASE}/api/register`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
+      body: makeFormData(payload)
     });
     const data = await res.json();
     assert(data.success === false, `Expected success=false, got ${JSON.stringify(data)}`);
@@ -144,8 +155,7 @@ async function run() {
 
     const res = await fetch(`${BASE}/api/register`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
+      body: makeFormData(payload)
     });
     const data = await res.json();
     assert(data.success === true, `Expected success=true, got ${JSON.stringify(data)}`);
@@ -156,8 +166,34 @@ async function run() {
     assert(row && row.team_selected === 'General', `Expected team_selected='General', got '${row ? row.team_selected : 'none'}'`);
   });
 
+  // Test 7: Missing payment screenshot -> fail
+  await test('POST /api/register with missing screenshot -> fail', async () => {
+    const payload = {
+      name: 'Test User No Screenshot',
+      department: 'CSE',
+      year: '2nd',
+      team_selected: 'Technical',
+      utr_number: '555566667777'
+    };
+
+    const res = await fetch(`${BASE}/api/register`, {
+      method: 'POST',
+      body: makeFormData(payload, false)
+    });
+    const data = await res.json();
+    assert(data.success === false, `Expected success=false, got ${JSON.stringify(data)}`);
+    assert(data.error === 'Payment screenshot is required', `Expected 'Payment screenshot is required', got '${data.error}'`);
+  });
+
   // Cleanup
   for (const id of cleanupIds) {
+    const row = db.prepare('SELECT screenshot_path FROM registrations WHERE id = ?').get(id);
+    if (row && row.screenshot_path) {
+      const filePath = path.join(__dirname, '..', 'data', 'uploads', 'screenshots', row.screenshot_path);
+      if (fs.existsSync(filePath)) {
+        try { fs.unlinkSync(filePath); } catch (e) {}
+      }
+    }
     db.prepare('DELETE FROM registrations WHERE id = ?').run(id);
   }
 

@@ -1,4 +1,6 @@
 const express = require('express');
+const path = require('path');
+const fs = require('fs');
 const db = require('../db');
 const { requireAdmin } = require('../middleware/adminAuth');
 
@@ -16,7 +18,7 @@ router.get('/registrations', (req, res) => {
       verified: !!row.verified,
       flagged: !!row.flagged,
       payment_status: row.payment_status || null,
-      screenshot_url: null // screenshots removed
+      screenshot_url: row.screenshot_path ? `/uploads/screenshots/${row.screenshot_path}` : null
     }));
     return res.json(result);
   } catch (err) {
@@ -51,7 +53,18 @@ router.patch('/registrations/:id/unverify', (req, res) => {
 router.delete('/registrations/:id', (req, res) => {
   try {
     const { id } = req.params;
+    
+    // Get screenshot_path to delete file
+    const row = db.prepare('SELECT screenshot_path FROM registrations WHERE id = ?').get(id);
     db.prepare('DELETE FROM registrations WHERE id = ?').run(id);
+
+    if (row && row.screenshot_path) {
+      const filePath = path.join(__dirname, '..', 'data', 'uploads', 'screenshots', row.screenshot_path);
+      if (fs.existsSync(filePath)) {
+        try { fs.unlinkSync(filePath); } catch (e) {}
+      }
+    }
+
     return res.json({ success: true });
   } catch (err) {
     return res.status(500).json({ success: false, error: 'Server error' });

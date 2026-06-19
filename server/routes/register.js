@@ -1,12 +1,49 @@
 const express = require('express');
+const multer = require('multer');
+const path = require('path');
 const db = require('../db');
 const { VALID_TEAMS, TEAM_LABELS } = require('../../shared/constants.json');
 
 const router = express.Router();
 const VALID_DISPLAY_NAMES = Object.values(TEAM_LABELS);
 
+// Configure multer for screenshot uploads
+const screenshotStorage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, path.join(__dirname, '..', 'data', 'uploads', 'screenshots'));
+  },
+  filename: (req, file, cb) => {
+    const ext = path.extname(file.originalname);
+    const utr = req.body.utr_number || 'unknown';
+    const timestamp = Date.now();
+    cb(null, `${utr}_${timestamp}${ext}`);
+  }
+});
+
+const uploadScreenshot = multer({
+  storage: screenshotStorage,
+  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB
+  fileFilter: (req, file, cb) => {
+    if (file.mimetype.startsWith('image/')) {
+      cb(null, true);
+    } else {
+      cb(new Error('Only image files are allowed'));
+    }
+  }
+});
+
 // POST /api/register
-router.post('/api/register', (req, res) => {
+router.post('/api/register', (req, res, next) => {
+  uploadScreenshot.single('screenshot')(req, res, (err) => {
+    if (err) {
+      if (err instanceof multer.MulterError && err.code === 'LIMIT_FILE_SIZE') {
+        return res.status(400).json({ success: false, error: 'Payment screenshot exceeds the 5MB size limit' });
+      }
+      return res.status(400).json({ success: false, error: err.message || 'Error uploading file' });
+    }
+    next();
+  });
+}, (req, res) => {
   try {
     const { name, department, year, team_selected, utr_number } = req.body;
 
@@ -32,6 +69,14 @@ router.post('/api/register', (req, res) => {
       });
     }
 
+    // Enforce screenshot is not optional
+    if (!req.file) {
+      return res.status(400).json({
+        success: false,
+        error: 'Payment screenshot is required'
+      });
+    }
+
     // Validate UTR: exactly 12 digits
     if (!/^\d{12}$/.test(utr_number.trim())) {
       return res.status(400).json({
@@ -39,6 +84,8 @@ router.post('/api/register', (req, res) => {
         error: 'UTR number must be exactly 12 digits (numeric only)'
       });
     }
+
+    const screenshotPath = req.file.filename;
 
     const stmt = db.prepare(`
       INSERT INTO registrations (name, department, year, team_selected, email, phone, utr_number, screenshot_path)
@@ -53,7 +100,7 @@ router.post('/api/register', (req, res) => {
       null,      // email
       null,      // phone
       utr_number.trim(),
-      null       // screenshot_path is now null
+      screenshotPath
     );
 
     return res.json({ success: true, id: info.lastInsertRowid });

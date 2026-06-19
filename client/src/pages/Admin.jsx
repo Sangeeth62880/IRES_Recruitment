@@ -456,6 +456,9 @@ function Admin() {
                                 <button className="btn btn--action" onClick={() => handleVerify(r.id)}>Verify</button>
                               )}
                               <button className="btn btn--danger-action" onClick={() => handleDelete(r.id)}>Delete</button>
+                              {r.screenshot_url && (
+                                <a href={r.screenshot_url} target="_blank" rel="noopener noreferrer" className="btn btn--action">View</a>
+                              )}
                             </div>
                           </td>
                         </tr>

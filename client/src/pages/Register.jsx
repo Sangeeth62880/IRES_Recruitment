@@ -37,6 +37,9 @@ function Register() {
   const [bankDetails, setBankDetails] = useState(null)
   const [copiedField, setCopiedField] = useState(null)
 
+  const [screenshot, setScreenshot] = useState(null)
+  const [previewUrl, setPreviewUrl] = useState(null)
+
   useEffect(() => {
     fetch('/api/settings/fee')
       .then(r => r.json())
@@ -95,6 +98,26 @@ function Register() {
     }
   }
 
+  function handleFileChange(e) {
+    const file = e.target.files[0]
+    if (file) {
+      if (file.size > 5 * 1024 * 1024) {
+        setErrors(prev => ({ ...prev, screenshot: 'File size exceeds the 5MB limit. Please upload a smaller image.' }))
+        setScreenshot(null)
+        setPreviewUrl(null)
+        return
+      }
+      setScreenshot(file)
+      setPreviewUrl(URL.createObjectURL(file))
+      if (errors.screenshot) {
+        setErrors(prev => { const n = { ...prev }; delete n.screenshot; return n })
+      }
+    } else {
+      setScreenshot(null)
+      setPreviewUrl(null)
+    }
+  }
+
   function validate() {
     const errs = {}
     if (!formData.name.trim()) errs.name = 'Full name is required'
@@ -106,6 +129,9 @@ function Register() {
     } else if (!/^\d{12}$/.test(formData.utr_number.trim())) {
       errs.utr_number = 'UTR must be exactly 12 digits'
     }
+    if (!screenshot) {
+      errs.screenshot = 'Payment screenshot is required'
+    }
     return errs
   }
 
@@ -116,18 +142,18 @@ function Register() {
     if (Object.keys(errs).length > 0) { setErrors(errs); return }
 
     setSubmitting(true)
+    const fd = new FormData()
+    fd.append('name', formData.name.trim())
+    fd.append('department', formData.department.trim())
+    fd.append('year', formData.year.trim())
+    fd.append('team_selected', formData.team_selected.trim())
+    fd.append('utr_number', formData.utr_number.trim())
+    if (screenshot) fd.append('screenshot', screenshot)
+
     try {
-      const payload = {
-        name: formData.name.trim(),
-        department: formData.department.trim(),
-        year: formData.year.trim(),
-        team_selected: formData.team_selected.trim(),
-        utr_number: formData.utr_number.trim()
-      }
       const res = await fetch('/api/register', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
+        body: fd
       })
       const data = await res.json()
       if (data.success) {
@@ -326,6 +352,27 @@ function Register() {
               Enter the 12-digit UTR/UPI Reference number from your payment confirmation.
             </p>
             {errors.utr_number && <p className="error-text">{errors.utr_number}</p>}
+          </div>
+
+          <div className="form-group">
+            <label>Payment Screenshot</label>
+            <div className="drop-zone">
+              <input type="file" className="drop-zone__input" accept="image/*" onChange={handleFileChange} id="reg-screenshot" />
+              {!previewUrl ? (
+                <>
+                  <p className="drop-zone__text">Upload payment screenshot</p>
+                  <p className="drop-zone__helper">Required (PNG, JPG, or JPEG up to 5MB)</p>
+                </>
+              ) : (
+                <>
+                  <div className="drop-zone__preview">
+                    <img src={previewUrl} alt="Preview" />
+                  </div>
+                  <p className="drop-zone__filename">{screenshot?.name}</p>
+                </>
+              )}
+            </div>
+            {errors.screenshot && <p className="error-text">{errors.screenshot}</p>}
           </div>
 
           <button type="submit" className="btn btn--primary" disabled={submitting}>
