@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { API_URL } from '../config'
 
 function AnimatedCheck() {
   return (
@@ -35,7 +36,7 @@ function Register() {
   const [previewUrl, setPreviewUrl] = useState(null)
 
   useEffect(() => {
-    fetch('/api/settings/fee')
+    fetch(`${API_URL}/api/settings/fee`)
       .then(r => r.json())
       .then(data => {
         if (data.fee !== undefined) setFee(data.fee)
@@ -43,15 +44,17 @@ function Register() {
       })
       .catch(() => {})
 
-    fetch('/api/settings/payment')
+    fetch(`${API_URL}/api/settings/payment`)
       .then(r => r.json())
       .then(data => {
         if (data.payment_display_mode) setPaymentMode(data.payment_display_mode)
-        if (data.qr_image_url) setQrImageUrl(data.qr_image_url)
+        if (data.qr_image_url) {
+          setQrImageUrl(data.qr_image_url.startsWith('http') ? data.qr_image_url : `${API_URL}${data.qr_image_url}`)
+        }
       })
       .catch(() => {})
 
-    fetch('/api/settings/bank')
+    fetch(`${API_URL}/api/settings/bank`)
       .then(r => r.json())
       .then(data => {
         if (data && data.bank_name && data.account_holder && data.account_number && data.ifsc_code) {
@@ -131,7 +134,7 @@ function Register() {
     if (screenshot) fd.append('screenshot', screenshot)
 
     try {
-      const res = await fetch('/api/register', {
+      const res = await fetch(`${API_URL}/api/register`, {
         method: 'POST',
         body: fd
       })

@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
+import { API_URL } from '../config'
 
 const NAV_ITEMS = [
   { id: 'registrations', label: 'Registrations' },
@@ -78,7 +79,8 @@ function Admin() {
       ...(isMutating && token ? { 'X-CSRF-Token': token } : {})
     }
 
-    const res = await fetch(url, { ...options, headers, credentials: 'include' })
+    const fullUrl = url.startsWith('http') ? url : `${API_URL}${url}`
+    const res = await fetch(fullUrl, { ...options, headers, credentials: 'include' })
     if (res.status === 401) {
       setLoggedIn(false)
       setLoginError('Session expired. Please log in again.')
@@ -90,7 +92,7 @@ function Admin() {
   // Retrieve fresh CSRF token whenever session is established
   useEffect(() => {
     if (loggedIn) {
-      fetch('/api/admin/csrf-token', { credentials: 'include' })
+      fetch(`${API_URL}/api/admin/csrf-token`, { credentials: 'include' })
         .then(r => r.json())
         .then(data => {
           if (data.csrfToken) setCsrfToken(data.csrfToken)
@@ -105,7 +107,7 @@ function Admin() {
     setLoginError('')
     setLoggingIn(true)
     try {
-      const res = await fetch('/api/admin/login', {
+      const res = await fetch(`${API_URL}/api/admin/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
@@ -600,7 +602,7 @@ function Admin() {
                               )}
                               <button className="btn btn--danger-action" onClick={() => handleDelete(r.id)}>Delete</button>
                               {r.screenshot_url && (
-                                <a href={r.screenshot_url} target="_blank" rel="noopener noreferrer" className="btn btn--action">View</a>
+                                <a href={r.screenshot_url.startsWith('http') ? r.screenshot_url : `${API_URL}${r.screenshot_url}`} target="_blank" rel="noopener noreferrer" className="btn btn--action">View</a>
                               )}
                             </div>
                           </td>
@@ -778,7 +780,7 @@ function Admin() {
                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
                       <div className="qr-preview-box">
                         <img
-                          src={`/api/payment/qr?t=${Date.now()}`}
+                          src={`${API_URL}/api/payment/qr?t=${Date.now()}`}
                           alt="Active QR"
                           onError={e => { e.target.style.display = 'none' }}
                         />
