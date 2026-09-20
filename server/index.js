@@ -32,7 +32,6 @@ if (!sessionDbUrl || !sessionDbUrl.trim()) {
 
 const express = require('express');
 const cors = require('cors');
-const fs = require('fs');
 const session = require('express-session');
 const crypto = require('crypto');
 const { Pool } = require('pg');
@@ -110,18 +109,10 @@ app.post('/api/admin/login', loginLimiter, login);
 // Protected admin routes
 app.use('/api/admin', adminRoutes);
 
-// Serve static frontend files if built or in production
-const clientDistDir = path.join(__dirname, '..', 'client', 'dist');
-if (process.env.NODE_ENV === 'production' || fs.existsSync(clientDistDir)) {
-  app.use(express.static(clientDistDir));
-  
-  app.get('*', (req, res, next) => {
-    if (req.path.startsWith('/api') || req.path.startsWith('/uploads')) {
-      return next();
-    }
-    res.sendFile(path.join(clientDistDir, 'index.html'));
-  });
-}
+// Catch-all 404 handler for unmatched routes (pure API service)
+app.use((req, res) => {
+  res.status(404).json({ error: 'Not found' });
+});
 
 app.listen(PORT, () => {
   console.log(`Server running on http://localhost:${PORT}`);
