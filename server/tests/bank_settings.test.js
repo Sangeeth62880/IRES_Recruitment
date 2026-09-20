@@ -4,7 +4,8 @@
  * Requires server running on port 3001
  */
 
-const db = require('../db');
+require('dotenv').config({ path: require('path').join(__dirname, '..', '.env') });
+const supabase = require('../supabaseClient');
 
 const BASE = 'http://localhost:3001';
 let passed = 0;
@@ -136,13 +137,9 @@ async function run() {
     assert(res.status === 400, `Expected 400, got ${res.status}`);
   });
 
-  // Cleanup Settings
+  // Cleanup Settings via Supabase client
   const keys = ['bank_name', 'account_holder', 'account_number', 'ifsc_code', 'branch_name'];
-  db.transaction(() => {
-    keys.forEach(k => {
-      db.prepare("DELETE FROM settings WHERE key = ?").run(k);
-    });
-  })();
+  await supabase.from('settings').delete().in('key', keys);
 
   console.log(`\n--- Results: ${passed} passed, ${failed} failed ---\n`);
   process.exit(failed > 0 ? 1 : 0);

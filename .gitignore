@@ -7,24 +7,11 @@ node_modules/
 .vscode/
 .idea/
 
-# Local databases
-server/data/
-server/database.db
-*.db
-
 # Environmental files
 .env
 .env.local
 server/.env
 client/.env
-
-# Multer uploads
-server/uploads/screenshots/*
-server/uploads/qr/*
-server/uploads/temp/*
-!server/uploads/screenshots/.gitkeep
-!server/uploads/qr/.gitkeep
-!server/uploads/temp/.gitkeep
 
 # Build directories
 client/dist/
@@ -33,3 +20,8 @@ dist/
 # Artifacts
 hero-baseline.png
 
+# Legacy local files (migrated to Supabase)
+server/data/
+server/uploads/
+*.db
+*.db-*

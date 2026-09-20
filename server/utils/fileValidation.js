@@ -67,5 +67,54 @@ function isValidImage(filePath) {
   return getImageMimeType(filePath) !== null;
 }
 
-module.exports = { isValidImage, getImageMimeType, ALLOWED_IMAGE_EXTENSIONS };
+/**
+ * Derives verified image MIME type from an in-memory Buffer's magic bytes.
+ * Used with Multer memoryStorage where there is no file on disk.
+ * Returns 'image/png', 'image/jpeg', or null if invalid.
+ *
+ * @param {Buffer} buffer - The file buffer from req.file.buffer
+ * @returns {string|null} - MIME type or null
+ */
+function getImageMimeTypeFromBuffer(buffer) {
+  if (!buffer || !Buffer.isBuffer(buffer) || buffer.length < 3) {
+    return null;
+  }
 
+  // Check JPEG signature: FF D8 FF
+  if (buffer[0] === 0xFF && buffer[1] === 0xD8 && buffer[2] === 0xFF) {
+    return 'image/jpeg';
+  }
+
+  // Check PNG signature: 89 50 4E 47 0D 0A 1A 0A
+  if (buffer.length >= 8 &&
+      buffer[0] === 0x89 &&
+      buffer[1] === 0x50 &&
+      buffer[2] === 0x4E &&
+      buffer[3] === 0x47 &&
+      buffer[4] === 0x0D &&
+      buffer[5] === 0x0A &&
+      buffer[6] === 0x1A &&
+      buffer[7] === 0x0A) {
+    return 'image/png';
+  }
+
+  return null;
+}
+
+/**
+ * Validates in-memory buffer magic bytes against allowed image signatures (PNG and JPEG).
+ *
+ * @param {Buffer} buffer - The file buffer from req.file.buffer
+ * @returns {boolean} - true if buffer matches PNG or JPEG magic bytes
+ */
+function isValidImageBuffer(buffer) {
+  return getImageMimeTypeFromBuffer(buffer) !== null;
+}
+
+module.exports = {
+  isValidImage,
+  getImageMimeType,
+  isValidImageBuffer,
+  getImageMimeTypeFromBuffer,
+  ALLOWED_IMAGE_EXTENSIONS
+};

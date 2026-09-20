@@ -1,30 +1,18 @@
 const express = require('express');
 const path = require('path');
-const fs = require('fs');
 const multer = require('multer');
-const db = require('../db');
+const crypto = require('crypto');
+const supabase = require('../supabaseClient');
 const { requireAdmin, logout } = require('../middleware/adminAuth');
 const { verifyCsrf, generateCsrfToken } = require('../middleware/csrf');
-const { isValidImage, getImageMimeType, ALLOWED_IMAGE_EXTENSIONS } = require('../utils/fileValidation');
+const { isValidImageBuffer, getImageMimeTypeFromBuffer, ALLOWED_IMAGE_EXTENSIONS } = require('../utils/fileValidation');
 const { logSecurityEvent } = require('../utils/securityLogger');
 
 const router = express.Router();
 
-// Multer storage for QR code uploads (Finding 2)
-const qrStorage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    cb(null, path.join(__dirname, '..', 'data', 'uploads', 'qr'));
-  },
-  filename: (req, file, cb) => {
-    const ext = path.extname(file.originalname).toLowerCase();
-    const safeExt = ALLOWED_IMAGE_EXTENSIONS.includes(ext) ? ext : '.png';
-    const timestamp = Date.now();
-    cb(null, `qr_${timestamp}${safeExt}`);
-  }
-});
-
+// Multer memoryStorage for QR code uploads (Finding 2)
 const uploadQr = multer({
-  storage: qrStorage,
+  storage: multer.memoryStorage(),
   limits: { fileSize: 2 * 1024 * 1024 }, // 2MB limit
   fileFilter: (req, file, cb) => {
     const ext = path.extname(file.originalname).toLowerCase();
@@ -56,15 +44,21 @@ router.get('/csrf-token', (req, res) => {
 });
 
 // GET /api/admin/registrations
-router.get('/registrations', (req, res) => {
+router.get('/registrations', async (req, res) => {
   try {
-    const rows = db.prepare('SELECT * FROM registrations ORDER BY submitted_at DESC').all();
-    const result = rows.map(row => ({
+    const { data: rows, error } = await supabase
+      .from('registrations')
+      .select('*')
+      .order('submitted_at', { ascending: false });
+
+    if (error) throw error;
+
+    const result = (rows || []).map(row => ({
       ...row,
       verified: !!row.verified,
       flagged: !!row.flagged,
       payment_status: row.payment_status || null,
-      screenshot_url: row.screenshot_path ? `/api/admin/screenshots/${row.screenshot_path}` : null
+      screenshot_url: row.screenshot_storage_path ? `/api/admin/screenshots/${row.screenshot_storage_path}` : null
     }));
     return res.json(result);
   } catch (err) {
@@ -73,8 +67,8 @@ router.get('/registrations', (req, res) => {
   }
 });
 
-// GET /api/admin/screenshots/:filename (Finding 2: Authenticated, traversal-protected, safe Content-Type)
-router.get('/screenshots/:filename', (req, res) => {
+// GET /api/admin/screenshots/:filename (Finding 2: Authenticated, signed URL from Supabase Storage)
+router.get('/screenshots/:filename', async (req, res) => {
   try {
     const { filename } = req.params;
 
@@ -94,27 +88,17 @@ router.get('/screenshots/:filename', (req, res) => {
       return res.status(400).json({ success: false, error: 'Invalid filename format' });
     }
 
-    const screenshotsDir = path.resolve(__dirname, '..', 'data', 'uploads', 'screenshots');
-    const resolvedPath = path.resolve(screenshotsDir, filename);
+    // Generate a short-lived signed URL (5 minutes) from Supabase Storage
+    const { data: signedUrlData, error: signedUrlError } = await supabase.storage
+      .from('payment-screenshots')
+      .createSignedUrl(filename, 300); // 300 seconds = 5 minutes
 
-    // Verify resolved path strictly resides within screenshots directory
-    if (!resolvedPath.startsWith(screenshotsDir + path.sep)) {
-      return res.status(400).json({ success: false, error: 'Access denied' });
-    }
-
-    if (!fs.existsSync(resolvedPath)) {
+    if (signedUrlError || !signedUrlData || !signedUrlData.signedUrl) {
       return res.status(404).json({ success: false, error: 'Screenshot not found' });
     }
 
-    const mimeType = getImageMimeType(resolvedPath);
-    if (!mimeType) {
-      return res.status(400).json({ success: false, error: 'Invalid image format' });
-    }
-
-    res.setHeader('Content-Type', mimeType);
-    res.setHeader('X-Content-Type-Options', 'nosniff');
-    res.setHeader('Content-Disposition', `inline; filename="screenshot${mimeType === 'image/jpeg' ? '.jpg' : '.png'}"`);
-    return res.sendFile(resolvedPath);
+    // Redirect authenticated admin to the signed URL
+    return res.redirect(signedUrlData.signedUrl);
   } catch (err) {
     console.error('Error streaming screenshot:', err);
     return res.status(500).json({ success: false, error: 'Server error' });
@@ -122,10 +106,14 @@ router.get('/screenshots/:filename', (req, res) => {
 });
 
 // PATCH /api/admin/registrations/:id/verify
-router.patch('/registrations/:id/verify', (req, res) => {
+router.patch('/registrations/:id/verify', async (req, res) => {
   try {
     const { id } = req.params;
-    db.prepare('UPDATE registrations SET verified = 1 WHERE id = ?').run(id);
+    const { error } = await supabase
+      .from('registrations')
+      .update({ verified: true })
+      .eq('id', parseInt(id, 10));
+    if (error) throw error;
     return res.json({ success: true });
   } catch (err) {
     return res.status(500).json({ success: false, error: 'Server error' });
@@ -133,10 +121,14 @@ router.patch('/registrations/:id/verify', (req, res) => {
 });
 
 // PATCH /api/admin/registrations/:id/unverify
-router.patch('/registrations/:id/unverify', (req, res) => {
+router.patch('/registrations/:id/unverify', async (req, res) => {
   try {
     const { id } = req.params;
-    db.prepare('UPDATE registrations SET verified = 0 WHERE id = ?').run(id);
+    const { error } = await supabase
+      .from('registrations')
+      .update({ verified: false })
+      .eq('id', parseInt(id, 10));
+    if (error) throw error;
     return res.json({ success: true });
   } catch (err) {
     return res.status(500).json({ success: false, error: 'Server error' });
@@ -144,19 +136,30 @@ router.patch('/registrations/:id/unverify', (req, res) => {
 });
 
 // DELETE /api/admin/registrations/:id
-router.delete('/registrations/:id', (req, res) => {
+router.delete('/registrations/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    
-    // Get screenshot_path to delete file
-    const row = db.prepare('SELECT screenshot_path FROM registrations WHERE id = ?').get(id);
-    db.prepare('DELETE FROM registrations WHERE id = ?').run(id);
+    const parsedId = parseInt(id, 10);
 
-    if (row && row.screenshot_path) {
-      const filePath = path.join(__dirname, '..', 'data', 'uploads', 'screenshots', row.screenshot_path);
-      if (fs.existsSync(filePath)) {
-        try { fs.unlinkSync(filePath); } catch (e) {}
-      }
+    // Get screenshot_storage_path to delete from Supabase Storage
+    const { data: row } = await supabase
+      .from('registrations')
+      .select('screenshot_storage_path')
+      .eq('id', parsedId)
+      .maybeSingle();
+
+    const { error: deleteError } = await supabase
+      .from('registrations')
+      .delete()
+      .eq('id', parsedId);
+
+    if (deleteError) throw deleteError;
+
+    // Clean up screenshot from Supabase Storage
+    if (row && row.screenshot_storage_path) {
+      await supabase.storage
+        .from('payment-screenshots')
+        .remove([row.screenshot_storage_path]);
     }
 
     return res.json({ success: true });
@@ -166,14 +169,19 @@ router.delete('/registrations/:id', (req, res) => {
 });
 
 // GET /api/admin/export/csv
-router.get('/export/csv', (req, res) => {
+router.get('/export/csv', async (req, res) => {
   try {
-    const rows = db.prepare('SELECT * FROM registrations ORDER BY submitted_at DESC').all();
+    const { data: rows, error } = await supabase
+      .from('registrations')
+      .select('*')
+      .order('submitted_at', { ascending: false });
+
+    if (error) throw error;
 
     const headers = ['id', 'name', 'email', 'phone', 'institution', 'utr_number', 'fee_tier', 'verified', 'payment_status', 'submitted_at'];
     const csvRows = [headers.join(',')];
 
-    for (const row of rows) {
+    for (const row of (rows || [])) {
       const values = headers.map(h => {
         let val = row[h];
         if (h === 'verified') val = val ? 'Yes' : 'No';
@@ -204,16 +212,20 @@ router.get('/export/csv', (req, res) => {
 });
 
 // GET /api/admin/settings/pricing
-router.get('/settings/pricing', (req, res) => {
+router.get('/settings/pricing', async (req, res) => {
   try {
-    const earlyRow = db.prepare("SELECT value FROM settings WHERE key = 'early_bird_fee'").get();
-    const regularRow = db.prepare("SELECT value FROM settings WHERE key = 'regular_fee'").get();
-    const enabledRow = db.prepare("SELECT value FROM settings WHERE key = 'early_bird_enabled'").get();
+    const { data: rows } = await supabase
+      .from('settings')
+      .select('key, value')
+      .in('key', ['early_bird_fee', 'regular_fee', 'early_bird_enabled']);
+
+    const settings = {};
+    if (rows) rows.forEach(r => { settings[r.key] = r.value; });
 
     return res.json({
-      early_bird_fee: earlyRow ? parseInt(earlyRow.value, 10) || 0 : 0,
-      regular_fee: regularRow ? parseInt(regularRow.value, 10) || 0 : 0,
-      early_bird_enabled: enabledRow ? enabledRow.value === '1' : false
+      early_bird_fee: settings.early_bird_fee ? parseInt(settings.early_bird_fee, 10) || 0 : 0,
+      regular_fee: settings.regular_fee ? parseInt(settings.regular_fee, 10) || 0 : 0,
+      early_bird_enabled: settings.early_bird_enabled ? settings.early_bird_enabled === '1' : false
     });
   } catch (err) {
     console.error('Error fetching pricing:', err);
@@ -222,7 +234,7 @@ router.get('/settings/pricing', (req, res) => {
 });
 
 // POST /api/admin/settings/pricing
-router.post('/settings/pricing', (req, res) => {
+router.post('/settings/pricing', async (req, res) => {
   try {
     const { early_bird_fee, regular_fee, early_bird_enabled } = req.body;
 
@@ -231,7 +243,7 @@ router.post('/settings/pricing', (req, res) => {
       if (isNaN(val) || val < 0) {
         return res.status(400).json({ success: false, error: 'Valid early bird fee amount is required' });
       }
-      db.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES ('early_bird_fee', ?)").run(String(val));
+      await supabase.from('settings').upsert({ key: 'early_bird_fee', value: String(val) }, { onConflict: 'key' });
     }
 
     if (regular_fee !== undefined && regular_fee !== null) {
@@ -239,24 +251,28 @@ router.post('/settings/pricing', (req, res) => {
       if (isNaN(val) || val < 0) {
         return res.status(400).json({ success: false, error: 'Valid regular fee amount is required' });
       }
-      db.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES ('regular_fee', ?)").run(String(val));
+      await supabase.from('settings').upsert({ key: 'regular_fee', value: String(val) }, { onConflict: 'key' });
     }
 
     if (early_bird_enabled !== undefined) {
       const val = early_bird_enabled ? '1' : '0';
-      db.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES ('early_bird_enabled', ?)").run(val);
+      await supabase.from('settings').upsert({ key: 'early_bird_enabled', value: val }, { onConflict: 'key' });
     }
 
     // Return current state
-    const earlyRow = db.prepare("SELECT value FROM settings WHERE key = 'early_bird_fee'").get();
-    const regularRow = db.prepare("SELECT value FROM settings WHERE key = 'regular_fee'").get();
-    const enabledRow = db.prepare("SELECT value FROM settings WHERE key = 'early_bird_enabled'").get();
+    const { data: rows } = await supabase
+      .from('settings')
+      .select('key, value')
+      .in('key', ['early_bird_fee', 'regular_fee', 'early_bird_enabled']);
+
+    const settings = {};
+    if (rows) rows.forEach(r => { settings[r.key] = r.value; });
 
     return res.json({
       success: true,
-      early_bird_fee: earlyRow ? parseInt(earlyRow.value, 10) : 0,
-      regular_fee: regularRow ? parseInt(regularRow.value, 10) : 0,
-      early_bird_enabled: enabledRow ? enabledRow.value === '1' : false
+      early_bird_fee: settings.early_bird_fee ? parseInt(settings.early_bird_fee, 10) : 0,
+      regular_fee: settings.regular_fee ? parseInt(settings.regular_fee, 10) : 0,
+      early_bird_enabled: settings.early_bird_enabled ? settings.early_bird_enabled === '1' : false
     });
   } catch (err) {
     console.error('Pricing update error:', err);
@@ -265,7 +281,7 @@ router.post('/settings/pricing', (req, res) => {
 });
 
 // PATCH /api/admin/settings/event
-router.patch('/settings/event', (req, res) => {
+router.patch('/settings/event', async (req, res) => {
   try {
     const { event_date, event_venue } = req.body;
 
@@ -277,11 +293,9 @@ router.patch('/settings/event', (req, res) => {
       updates.event_venue = typeof event_venue === 'string' ? event_venue.trim() : '';
     }
 
-    db.transaction(() => {
-      Object.entries(updates).forEach(([key, value]) => {
-        db.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)").run(key, value);
-      });
-    })();
+    for (const [key, value] of Object.entries(updates)) {
+      await supabase.from('settings').upsert({ key, value }, { onConflict: 'key' });
+    }
 
     return res.json({ success: true, event_details: updates });
   } catch (err) {
@@ -291,7 +305,7 @@ router.patch('/settings/event', (req, res) => {
 });
 
 // PATCH /api/admin/settings/bank
-router.patch('/settings/bank', (req, res) => {
+router.patch('/settings/bank', async (req, res) => {
   try {
     const { bank_name, account_holder, account_number, ifsc_code, branch_name } = req.body;
 
@@ -327,11 +341,9 @@ router.patch('/settings/bank', (req, res) => {
       branch_name: branchNameVal
     };
 
-    db.transaction(() => {
-      Object.entries(updates).forEach(([key, value]) => {
-        db.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)").run(key, value);
-      });
-    })();
+    for (const [key, value] of Object.entries(updates)) {
+      await supabase.from('settings').upsert({ key, value }, { onConflict: 'key' });
+    }
 
     return res.json({ success: true, bank_details: updates });
   } catch (err) {
@@ -341,18 +353,20 @@ router.patch('/settings/bank', (req, res) => {
 });
 
 // GET /api/admin/settings/payment
-router.get('/settings/payment', (req, res) => {
+router.get('/settings/payment', async (req, res) => {
   try {
-    const modeRow = db.prepare("SELECT value FROM settings WHERE key = 'payment_display_mode'").get();
-    const qrRow = db.prepare("SELECT value FROM settings WHERE key = 'qr_image_filename'").get();
+    const { data: modeRow } = await supabase
+      .from('settings').select('value').eq('key', 'payment_display_mode').maybeSingle();
+    const { data: qrRow } = await supabase
+      .from('settings').select('value').eq('key', 'qr_storage_path').maybeSingle();
 
     const mode = modeRow && modeRow.value ? modeRow.value : 'bank';
-    const qrFilename = qrRow && qrRow.value && qrRow.value.trim() ? qrRow.value.trim() : null;
+    const qrStoragePath = qrRow && qrRow.value && qrRow.value.trim() ? qrRow.value.trim() : null;
 
     return res.json({
       payment_display_mode: mode,
-      qr_image_filename: qrFilename,
-      qr_image_url: qrFilename ? '/api/payment/qr' : null
+      qr_storage_path: qrStoragePath,
+      qr_image_url: qrStoragePath ? '/api/payment/qr' : null
     });
   } catch (err) {
     console.error('Error fetching admin payment settings:', err);
@@ -361,7 +375,7 @@ router.get('/settings/payment', (req, res) => {
 });
 
 // PATCH /api/admin/settings/payment-mode
-router.patch('/settings/payment-mode', (req, res) => {
+router.patch('/settings/payment-mode', async (req, res) => {
   try {
     const { payment_display_mode } = req.body;
     const allowed = ['qr', 'bank', 'both'];
@@ -373,7 +387,10 @@ router.patch('/settings/payment-mode', (req, res) => {
       });
     }
 
-    db.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES ('payment_display_mode', ?)").run(payment_display_mode);
+    await supabase.from('settings').upsert(
+      { key: 'payment_display_mode', value: payment_display_mode },
+      { onConflict: 'key' }
+    );
 
     return res.json({ success: true, payment_display_mode });
   } catch (err) {
@@ -395,17 +412,15 @@ router.post('/settings/qr', (req, res, next) => {
     }
     next();
   });
-}, (req, res) => {
+}, async (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({ success: false, error: 'QR image file is required' });
     }
 
-    // Validate true magic bytes (PNG or JPEG)
-    if (!isValidImage(req.file.path)) {
-      if (fs.existsSync(req.file.path)) {
-        try { fs.unlinkSync(req.file.path); } catch (_) {}
-      }
+    // Validate true magic bytes (PNG or JPEG) — buffer-based
+    const verifiedMimeType = getImageMimeTypeFromBuffer(req.file.buffer);
+    if (!verifiedMimeType) {
       logSecurityEvent('REJECTED_UPLOAD', req, `QR magic byte validation failed (declared: ${req.file.mimetype})`);
       return res.status(400).json({
         success: false,
@@ -413,33 +428,50 @@ router.post('/settings/qr', (req, res, next) => {
       });
     }
 
-    const newFilename = req.file.filename;
+    // Generate storage key with safe extension
+    const ext = path.extname(req.file.originalname).toLowerCase();
+    const safeExt = ALLOWED_IMAGE_EXTENSIONS.includes(ext) ? ext : '.png';
+    const randomId = crypto.randomBytes(16).toString('hex');
+    const newStoragePath = `qr_${Date.now()}_${randomId}${safeExt}`;
 
-    // Retrieve previous filename from settings
-    const prevRow = db.prepare("SELECT value FROM settings WHERE key = 'qr_image_filename'").get();
-    const prevFilename = prevRow && prevRow.value ? prevRow.value.trim() : null;
+    // Upload to Supabase Storage
+    const { error: uploadError } = await supabase.storage
+      .from('qr-codes')
+      .upload(newStoragePath, req.file.buffer, {
+        contentType: verifiedMimeType,
+        upsert: false
+      });
 
-    // Transaction to update settings and write audit log
-    db.transaction(() => {
-      db.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES ('qr_image_filename', ?)").run(newFilename);
-      db.prepare(`
-        INSERT INTO qr_audit_log (changed_at, ip_address, previous_filename, new_filename)
-        VALUES (datetime('now', 'localtime'), ?, ?, ?)
-      `).run(req.ip || 'unknown', prevFilename, newFilename);
-    })();
+    if (uploadError) {
+      console.error('QR upload error:', uploadError);
+      return res.status(500).json({ success: false, error: 'Server error during QR upload' });
+    }
 
-    // Finding 11: Cleanup previous QR file from disk if replaced and different
-    if (prevFilename && prevFilename !== newFilename) {
-      const qrDir = path.resolve(__dirname, '..', 'data', 'uploads', 'qr');
-      const oldFilePath = path.resolve(qrDir, prevFilename);
-      if (oldFilePath.startsWith(qrDir + path.sep) && fs.existsSync(oldFilePath)) {
-        try { fs.unlinkSync(oldFilePath); } catch (_) {}
-      }
+    // Retrieve previous storage path from settings
+    const { data: prevRow } = await supabase
+      .from('settings').select('value').eq('key', 'qr_storage_path').maybeSingle();
+    const prevStoragePath = prevRow && prevRow.value ? prevRow.value.trim() : null;
+
+    // Update settings and write audit log
+    await supabase.from('settings').upsert(
+      { key: 'qr_storage_path', value: newStoragePath },
+      { onConflict: 'key' }
+    );
+
+    await supabase.from('qr_audit_log').insert({
+      ip_address: req.ip || 'unknown',
+      previous_storage_path: prevStoragePath,
+      new_storage_path: newStoragePath
+    });
+
+    // Finding 11: Cleanup previous QR file from Supabase Storage if replaced and different
+    if (prevStoragePath && prevStoragePath !== newStoragePath) {
+      await supabase.storage.from('qr-codes').remove([prevStoragePath]);
     }
 
     return res.json({
       success: true,
-      qr_image_filename: newFilename,
+      qr_storage_path: newStoragePath,
       qr_image_url: '/api/payment/qr'
     });
   } catch (err) {
@@ -449,29 +481,28 @@ router.post('/settings/qr', (req, res, next) => {
 });
 
 // DELETE /api/admin/settings/qr
-router.delete('/settings/qr', (req, res) => {
+router.delete('/settings/qr', async (req, res) => {
   try {
-    const prevRow = db.prepare("SELECT value FROM settings WHERE key = 'qr_image_filename'").get();
-    const prevFilename = prevRow && prevRow.value ? prevRow.value.trim() : null;
+    const { data: prevRow } = await supabase
+      .from('settings').select('value').eq('key', 'qr_storage_path').maybeSingle();
+    const prevStoragePath = prevRow && prevRow.value ? prevRow.value.trim() : null;
 
-    if (!prevFilename) {
+    if (!prevStoragePath) {
       return res.status(400).json({ success: false, error: 'No active QR code to remove' });
     }
 
-    db.transaction(() => {
-      db.prepare("DELETE FROM settings WHERE key = 'qr_image_filename'").run();
-      db.prepare(`
-        INSERT INTO qr_audit_log (changed_at, ip_address, previous_filename, new_filename)
-        VALUES (datetime('now', 'localtime'), ?, ?, NULL)
-      `).run(req.ip || 'unknown', prevFilename);
-    })();
+    // Delete setting
+    await supabase.from('settings').delete().eq('key', 'qr_storage_path');
 
-    // Remove file from disk
-    const qrDir = path.resolve(__dirname, '..', 'data', 'uploads', 'qr');
-    const filePath = path.resolve(qrDir, prevFilename);
-    if (filePath.startsWith(qrDir + path.sep) && fs.existsSync(filePath)) {
-      try { fs.unlinkSync(filePath); } catch (_) {}
-    }
+    // Audit log
+    await supabase.from('qr_audit_log').insert({
+      ip_address: req.ip || 'unknown',
+      previous_storage_path: prevStoragePath,
+      new_storage_path: null
+    });
+
+    // Remove file from Supabase Storage
+    await supabase.storage.from('qr-codes').remove([prevStoragePath]);
 
     return res.json({ success: true });
   } catch (err) {

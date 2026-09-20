@@ -1,7 +1,8 @@
 const assert = require('assert');
 const path = require('path');
-const fs = require('fs');
-const db = require('../db');
+
+require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
+const supabase = require('../supabaseClient');
 
 const BASE_URL = 'http://localhost:3001';
 
@@ -27,16 +28,13 @@ async function runTests() {
     const pngMagic = Buffer.from([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]);
     const payload = Buffer.concat([pngMagic, Buffer.from('<script>alert("xss")</script>')]);
 
-    const tempFilePath = path.join(__dirname, 'polyglot.html');
-    fs.writeFileSync(tempFilePath, payload);
-
     const fd = new FormData();
     fd.append('name', 'Polyglot Tester');
     fd.append('email', 'polyglot@example.com');
     fd.append('phone', '9876543210');
     fd.append('institution', 'Security Lab');
     fd.append('utr_number', '123412341234');
-    fd.append('screenshot', new Blob([fs.readFileSync(tempFilePath)], { type: 'image/png' }), 'polyglot.html');
+    fd.append('screenshot', new Blob([payload], { type: 'image/png' }), 'polyglot.html');
 
     const res = await fetch(`${BASE_URL}/api/register`, {
       method: 'POST',
@@ -45,8 +43,6 @@ async function runTests() {
         'X-Forwarded-For': '10.88.0.1'
       }
     });
-
-    if (fs.existsSync(tempFilePath)) fs.unlinkSync(tempFilePath);
 
     const data = await res.json();
     assert.strictEqual(res.status, 400, `Expected status 400, got ${res.status}`);
@@ -93,8 +89,13 @@ async function runTests() {
     assert.strictEqual(data2.success, false, 'Duplicate registration should fail');
     assert.strictEqual(data2.error, 'This UTR number has already been registered');
 
-    // Clean up inserted test registration
-    db.prepare('DELETE FROM registrations WHERE utr_number = ?').run(testUtr);
+    // Clean up inserted test registration (DB + Storage)
+    const { data: row } = await supabase
+      .from('registrations').select('screenshot_storage_path').eq('utr_number', testUtr).maybeSingle();
+    if (row && row.screenshot_storage_path) {
+      await supabase.storage.from('payment-screenshots').remove([row.screenshot_storage_path]);
+    }
+    await supabase.from('registrations').delete().eq('utr_number', testUtr);
   });
 
   // 3. Session ID changes after a successful admin login (Session Fixation Prevention)
@@ -187,10 +188,14 @@ async function runTests() {
     const formulaName = '=cmd|\' /C calc\'!A0';
     const formulaInst = '@SUM(1+1)*cmd';
 
-    db.prepare(`
-      INSERT INTO registrations (name, email, phone, institution, utr_number, fee_tier)
-      VALUES (?, ?, ?, ?, ?, ?)
-    `).run(formulaName, 'formula@test.com', '9876543210', formulaInst, formulaUtr, 'regular');
+    await supabase.from('registrations').insert({
+      name: formulaName,
+      email: 'formula@test.com',
+      phone: '9876543210',
+      institution: formulaInst,
+      utr_number: formulaUtr,
+      fee_tier: 'regular'
+    });
 
     // Login as admin
     const loginRes = await fetch(`${BASE_URL}/api/admin/login`, {
@@ -221,7 +226,7 @@ async function runTests() {
     assert(csvText.includes("'@SUM"), 'CSV should neutralize @ formula with leading single quote');
 
     // Clean up inserted formula registration
-    db.prepare('DELETE FROM registrations WHERE utr_number = ?').run(formulaUtr);
+    await supabase.from('registrations').delete().eq('utr_number', formulaUtr);
   });
 
   console.log(`\n--- Results: ${passed} passed, ${failed} failed ---\n`);

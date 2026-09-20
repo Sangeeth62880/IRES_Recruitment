@@ -4,9 +4,8 @@
  * Requires server running on port 3001
  */
 
-const db = require('../db');
-const path = require('path');
-const fs = require('fs');
+require('dotenv').config({ path: require('path').join(__dirname, '..', '.env') });
+const supabase = require('../supabaseClient');
 
 const BASE = 'http://localhost:3001';
 let passed = 0;
@@ -60,7 +59,7 @@ async function run() {
   console.log('\n--- QR Code Payment Display & Admin Management Tests ---\n');
 
   // Ensure clean state before tests
-  db.prepare("DELETE FROM settings WHERE key IN ('payment_display_mode', 'qr_image_filename')").run();
+  await supabase.from('settings').delete().in('key', ['payment_display_mode', 'qr_storage_path']);
 
   // Test 1: GET /api/payment/qr when no QR is configured → 404
   await test('GET /api/payment/qr when unset → 404 Not Found', async () => {
@@ -134,8 +133,11 @@ async function run() {
     assert(data.success === false, 'Expected success=false');
   });
 
-  let uploadedQrFilename = null;
-  const auditLogsBefore = db.prepare("SELECT COUNT(*) as count FROM qr_audit_log").get().count;
+  const { data: auditCountBefore } = await supabase.from('qr_audit_log').select('id', { count: 'exact', head: true });
+  // Get count via a separate query
+  const { count: auditLogsBefore } = await supabase.from('qr_audit_log').select('*', { count: 'exact', head: true });
+
+  let uploadedQrStoragePath = null;
 
   // Test 7: Upload valid PNG QR image → 200, updates settings and adds to qr_audit_log
   await test('POST /api/admin/settings/qr with valid PNG → 200 and records audit log', async () => {
@@ -151,25 +153,31 @@ async function run() {
     assert(res.ok, `Expected 200, got ${res.status}`);
     const data = await res.json();
     assert(data.success === true, `Expected success=true, got ${JSON.stringify(data)}`);
-    assert(typeof data.qr_image_filename === 'string' && data.qr_image_filename.startsWith('qr_'), 'Expected filename starting with qr_');
+    assert(typeof data.qr_storage_path === 'string' && data.qr_storage_path.startsWith('qr_'), 'Expected storage path starting with qr_');
     assert(data.qr_image_url === '/api/payment/qr', `Expected /api/payment/qr, got ${data.qr_image_url}`);
 
-    uploadedQrFilename = data.qr_image_filename;
+    uploadedQrStoragePath = data.qr_storage_path;
 
     // Verify settings updated
-    const row = db.prepare("SELECT value FROM settings WHERE key = 'qr_image_filename'").get();
-    assert(row && row.value === uploadedQrFilename, 'Setting qr_image_filename was not updated');
+    const { data: row } = await supabase
+      .from('settings').select('value').eq('key', 'qr_storage_path').single();
+    assert(row && row.value === uploadedQrStoragePath, 'Setting qr_storage_path was not updated');
 
     // Verify qr_audit_log entry
-    const auditLogsAfter = db.prepare("SELECT COUNT(*) as count FROM qr_audit_log").get().count;
-    assert(auditLogsAfter === auditLogsBefore + 1, `Expected audit log count to increment by 1, got before: ${auditLogsBefore}, after: ${auditLogsAfter}`);
+    const { count: auditLogsAfter } = await supabase.from('qr_audit_log').select('*', { count: 'exact', head: true });
+    assert(auditLogsAfter === (auditLogsBefore || 0) + 1, `Expected audit log count to increment by 1, got before: ${auditLogsBefore}, after: ${auditLogsAfter}`);
 
-    const latestLog = db.prepare("SELECT * FROM qr_audit_log ORDER BY id DESC LIMIT 1").get();
-    assert(latestLog.new_filename === uploadedQrFilename, `Expected latest log new_filename=${uploadedQrFilename}, got ${latestLog.new_filename}`);
-    assert(latestLog.previous_filename === null, `Expected previous_filename=null, got ${latestLog.previous_filename}`);
+    const { data: latestLog } = await supabase
+      .from('qr_audit_log')
+      .select('*')
+      .order('id', { ascending: false })
+      .limit(1)
+      .single();
+    assert(latestLog.new_storage_path === uploadedQrStoragePath, `Expected latest log new_storage_path=${uploadedQrStoragePath}, got ${latestLog.new_storage_path}`);
+    assert(latestLog.previous_storage_path === null, `Expected previous_storage_path=null, got ${latestLog.previous_storage_path}`);
   });
 
-  // Test 8: Public GET /api/payment/qr now streams the active QR code
+  // Test 8: Public GET /api/payment/qr now streams the active QR code (proxied from Supabase Storage)
   await test('Public GET /api/payment/qr now returns 200 with image content', async () => {
     const res = await fetch(`${BASE}/api/payment/qr`);
     assert(res.ok, `Expected 200, got ${res.status}`);
@@ -214,24 +222,59 @@ async function run() {
   });
 
   // Test 10: DELETE /api/admin/settings/qr removes QR and logs removal
-  await test('DELETE /api/admin/settings/qr → removes QR and logs audit entry with null new_filename', async () => {
+  await test('DELETE /api/admin/settings/qr → removes QR and logs audit entry with null new_storage_path', async () => {
     const res = await adminFetch(`${BASE}/api/admin/settings/qr`, {
       method: 'DELETE'
     });
     assert(res.ok, `Expected 200, got ${res.status}`);
 
     // Setting cleared
-    const row = db.prepare("SELECT value FROM settings WHERE key = 'qr_image_filename'").get();
-    assert(!row, 'Expected qr_image_filename setting to be deleted');
+    const { data: row } = await supabase
+      .from('settings').select('value').eq('key', 'qr_storage_path').maybeSingle();
+    assert(!row, 'Expected qr_storage_path setting to be deleted');
 
     // Audit log recorded
-    const latestLog = db.prepare("SELECT * FROM qr_audit_log ORDER BY id DESC LIMIT 1").get();
-    assert(latestLog.previous_filename === uploadedQrFilename, `Expected previous_filename=${uploadedQrFilename}, got ${latestLog.previous_filename}`);
-    assert(latestLog.new_filename === null, `Expected new_filename=null, got ${latestLog.new_filename}`);
+    const { data: latestLog } = await supabase
+      .from('qr_audit_log')
+      .select('*')
+      .order('id', { ascending: false })
+      .limit(1)
+      .single();
+    assert(latestLog.previous_storage_path === uploadedQrStoragePath, `Expected previous_storage_path=${uploadedQrStoragePath}, got ${latestLog.previous_storage_path}`);
+    assert(latestLog.new_storage_path === null, `Expected new_storage_path=null, got ${latestLog.new_storage_path}`);
 
     // Public GET now returns 404 again
     const qrRes = await fetch(`${BASE}/api/payment/qr`);
     assert(qrRes.status === 404, `Expected 404 after deletion, got ${qrRes.status}`);
+  });
+
+  // Test 11: Signed URL generation for screenshot retrieval
+  await test('Signed URL: Screenshot endpoint returns redirect with signed URL for valid file', async () => {
+    const testKey = 'signed_url_test.png';
+    const pngData = Buffer.from([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0xAA, 0xBB]);
+
+    await supabase.storage.from('payment-screenshots').upload(testKey, pngData, {
+      contentType: 'image/png',
+      upsert: true
+    });
+
+    try {
+      const res = await fetch(`${BASE}/api/admin/screenshots/${testKey}`, {
+        headers: {
+          'Cookie': sessionCookie,
+        },
+        redirect: 'manual'
+      });
+
+      assert(res.status === 302 || res.status === 200, `Expected redirect (302) or success (200), got ${res.status}`);
+      if (res.status === 302) {
+        const location = res.headers.get('location');
+        assert(location, 'Expected Location header with signed URL');
+        assert(location.includes('token='), 'Signed URL should contain token parameter');
+      }
+    } finally {
+      await supabase.storage.from('payment-screenshots').remove([testKey]);
+    }
   });
 
   // Reset display mode to 'bank'

@@ -1,9 +1,6 @@
 node_modules/
-data/
-uploads/screenshots/*
-uploads/qr/*
-uploads/temp/*
-!uploads/screenshots/.gitkeep
-!uploads/qr/.gitkeep
-!uploads/temp/.gitkeep
 .env
+data/
+uploads/
+*.db
+*.db-*

@@ -4,9 +4,8 @@
  * Requires server running on port 3001
  */
 
-const db = require('../db');
-const path = require('path');
-const fs = require('fs');
+require('dotenv').config({ path: require('path').join(__dirname, '..', '.env') });
+const supabase = require('../supabaseClient');
 
 const BASE = 'http://localhost:3001';
 let passed = 0;
@@ -76,8 +75,9 @@ async function run() {
     assert(typeof data.id === 'number', `Expected numeric id, got ${data.id}`);
     cleanupIds.push(data.id);
 
-    // Check fee_tier was stored
-    const row = db.prepare('SELECT fee_tier FROM registrations WHERE id = ?').get(data.id);
+    // Check fee_tier was stored via Supabase client
+    const { data: row } = await supabase
+      .from('registrations').select('fee_tier').eq('id', data.id).single();
     assert(row && (row.fee_tier === 'early_bird' || row.fee_tier === 'regular'), 
       `Expected fee_tier to be early_bird or regular, got '${row ? row.fee_tier : 'none'}'`);
   });
@@ -180,14 +180,13 @@ async function run() {
 
   // Cleanup
   for (const id of cleanupIds) {
-    const row = db.prepare('SELECT screenshot_path FROM registrations WHERE id = ?').get(id);
-    if (row && row.screenshot_path) {
-      const filePath = path.join(__dirname, '..', 'data', 'uploads', 'screenshots', row.screenshot_path);
-      if (fs.existsSync(filePath)) {
-        try { fs.unlinkSync(filePath); } catch (e) {}
-      }
+    // Get screenshot path to clean up from storage
+    const { data: row } = await supabase
+      .from('registrations').select('screenshot_storage_path').eq('id', id).maybeSingle();
+    if (row && row.screenshot_storage_path) {
+      await supabase.storage.from('payment-screenshots').remove([row.screenshot_storage_path]);
     }
-    db.prepare('DELETE FROM registrations WHERE id = ?').run(id);
+    await supabase.from('registrations').delete().eq('id', id);
   }
 
   console.log(`\n--- Results: ${passed} passed, ${failed} failed ---\n`);

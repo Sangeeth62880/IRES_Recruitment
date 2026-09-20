@@ -10,10 +10,13 @@ function generateCsrfToken(req, res) {
   if (req.session) {
     req.session.csrfToken = token;
   }
+  const cookieSameSite = process.env.COOKIE_SAME_SITE || (process.env.NODE_ENV === 'production' ? 'none' : 'lax');
+  const cookieSecure = process.env.NODE_ENV === 'production' || cookieSameSite === 'none';
+
   res.cookie('csrf_token', token, {
     httpOnly: false, // Readable by client JS for double-submit header
-    sameSite: process.env.COOKIE_SAME_SITE || (process.env.NODE_ENV === 'production' ? 'none' : 'lax'),
-    secure: process.env.NODE_ENV === 'production',
+    sameSite: cookieSameSite,
+    secure: cookieSecure,
     path: '/'
   });
   return token;

@@ -4,7 +4,8 @@
  * Requires server running on port 3001
  */
 
-const db = require('../db');
+require('dotenv').config({ path: require('path').join(__dirname, '..', '.env') });
+const supabase = require('../supabaseClient');
 
 const BASE = 'http://localhost:3001';
 let passed = 0;
@@ -81,15 +82,25 @@ async function run() {
 
   // Test 3: Insert, verify, confirm
   await test('Insert registration → PATCH verify → confirm verified', async () => {
-    // Insert directly into DB with new schema
-    const info = db.prepare(`
-      INSERT INTO registrations (name, email, phone, institution, utr_number, fee_tier)
-      VALUES (?, ?, ?, ?, ?, ?)
-    `).run('Admin Test User', 'admin@test.com', '9876543210', 'CUSAT', '444455556666', 'regular');
-    cleanupIds.push(info.lastInsertRowid);
+    // Insert directly via Supabase client
+    const { data: insertData, error: insertError } = await supabase
+      .from('registrations')
+      .insert({
+        name: 'Admin Test User',
+        email: 'admin@test.com',
+        phone: '9876543210',
+        institution: 'CUSAT',
+        utr_number: '444455556666',
+        fee_tier: 'regular'
+      })
+      .select('id')
+      .single();
+
+    assert(!insertError, `Insert failed: ${insertError ? insertError.message : ''}`);
+    cleanupIds.push(insertData.id);
 
     // Verify via API
-    const verifyRes = await adminFetch(`${BASE}/api/admin/registrations/${info.lastInsertRowid}/verify`, {
+    const verifyRes = await adminFetch(`${BASE}/api/admin/registrations/${insertData.id}/verify`, {
       method: 'PATCH'
     });
     const verifyData = await verifyRes.json();
@@ -98,7 +109,7 @@ async function run() {
     // Confirm in list
     const listRes = await adminFetch(`${BASE}/api/admin/registrations`);
     const list = await listRes.json();
-    const found = list.find(r => r.id === Number(info.lastInsertRowid));
+    const found = list.find(r => r.id === insertData.id);
     assert(found && found.verified === true, `Expected verified=true, got ${found ? found.verified : 'not found'}`);
   });
 
@@ -154,9 +165,9 @@ async function run() {
   });
 
   // Cleanup
-  db.prepare("DELETE FROM settings WHERE key IN ('early_bird_fee', 'regular_fee', 'early_bird_enabled')").run();
+  await supabase.from('settings').delete().in('key', ['early_bird_fee', 'regular_fee', 'early_bird_enabled']);
   for (const id of cleanupIds) {
-    db.prepare('DELETE FROM registrations WHERE id = ?').run(id);
+    await supabase.from('registrations').delete().eq('id', id);
   }
 
   console.log(`\n--- Results: ${passed} passed, ${failed} failed ---\n`);

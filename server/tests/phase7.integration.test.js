@@ -4,9 +4,8 @@
  * Requires server running on port 3001
  */
 
-const db = require('../db');
-const path = require('path');
-const fs = require('fs');
+require('dotenv').config({ path: require('path').join(__dirname, '..', '.env') });
+const supabase = require('../supabaseClient');
 
 const BASE = 'http://localhost:3001';
 let passed = 0;
@@ -156,14 +155,15 @@ async function run() {
   } finally {
     // Cleanup in case of failures or leftovers
     if (registrationId) {
-      const row = db.prepare('SELECT screenshot_path FROM registrations WHERE id = ?').get(registrationId);
-      if (row && row.screenshot_path) {
-        const filePath = path.join(__dirname, '..', 'data', 'uploads', 'screenshots', row.screenshot_path);
-        if (fs.existsSync(filePath)) {
-          try { fs.unlinkSync(filePath); } catch (e) {}
-        }
+      const { data: row } = await supabase
+        .from('registrations')
+        .select('screenshot_storage_path')
+        .eq('id', registrationId)
+        .maybeSingle();
+      if (row && row.screenshot_storage_path) {
+        await supabase.storage.from('payment-screenshots').remove([row.screenshot_storage_path]);
       }
-      db.prepare('DELETE FROM registrations WHERE id = ?').run(registrationId);
+      await supabase.from('registrations').delete().eq('id', registrationId);
     }
   }
 

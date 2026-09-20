@@ -1,5 +1,8 @@
+const path = require('path');
 require('dotenv').config();
+require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
 
+// ── Boot guards ──────────────────────────────────────────────────────
 // Enforce ADMIN_PASSWORD and SESSION_SECRET in production; permit fallback only in development
 if (process.env.NODE_ENV === 'production') {
   if (!process.env.ADMIN_PASSWORD || !process.env.ADMIN_PASSWORD.trim()) {
@@ -19,31 +22,28 @@ if (process.env.NODE_ENV === 'production') {
   }
 }
 
+// Supabase boot guards are in supabaseClient.js (always enforced, not just production)
+// SESSION_DB_URL is required for the Postgres session store
+const sessionDbUrl = process.env.SESSION_DB_URL || process.env.DATABASE_URL;
+if (!sessionDbUrl || !sessionDbUrl.trim()) {
+  console.error('FATAL: SESSION_DB_URL environment variable is not set or empty. Refusing to start server.');
+  process.exit(1);
+}
+
 const express = require('express');
 const cors = require('cors');
-const path = require('path');
 const fs = require('fs');
 const session = require('express-session');
 const crypto = require('crypto');
+const { Pool } = require('pg');
+const pgSession = require('connect-pg-simple')(session);
 
-const db = require('./db');
-const SqliteSessionStore = require('./sessionStore');
+// Initialize Supabase client (triggers its own boot guards)
+require('./supabaseClient');
 
 const app = express();
 app.set('trust proxy', 1);
 const PORT = process.env.PORT || 3001;
-
-// Ensure upload directories exist
-const uploadsDir = path.join(__dirname, 'data', 'uploads');
-const screenshotsDir = path.join(uploadsDir, 'screenshots');
-const qrDir = path.join(uploadsDir, 'qr');
-const tempDir = path.join(uploadsDir, 'temp');
-
-[uploadsDir, screenshotsDir, qrDir, tempDir].forEach(dir => {
-  if (!fs.existsSync(dir)) {
-    fs.mkdirSync(dir, { recursive: true });
-  }
-});
 
 const helmet = require('helmet');
 
@@ -68,23 +68,34 @@ app.use(cors({
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Session middleware
+// ── Postgres Session Store (connect-pg-simple) ──────────────────────
+const sessionPool = new Pool({
+  connectionString: sessionDbUrl,
+});
+
+sessionPool.on('error', (err) => {
+  console.error('Unexpected error on idle session database client:', err.message);
+});
+
+const cookieSameSite = process.env.COOKIE_SAME_SITE || (process.env.NODE_ENV === 'production' ? 'none' : 'lax');
+const cookieSecure = process.env.NODE_ENV === 'production' || cookieSameSite === 'none';
+
 app.use(session({
-  store: new SqliteSessionStore(db),
+  store: new pgSession({
+    pool: sessionPool,
+    tableName: 'session',
+    pruneSessionInterval: 60 * 60, // prune expired sessions every hour (seconds)
+  }),
   secret: process.env.SESSION_SECRET || crypto.randomBytes(32).toString('hex'),
   resave: false,
   saveUninitialized: false,
   cookie: {
     httpOnly: true,
-    sameSite: process.env.COOKIE_SAME_SITE || (process.env.NODE_ENV === 'production' ? 'none' : 'lax'),
-    secure: process.env.NODE_ENV === 'production', // true in production with HTTPS, false in dev
+    sameSite: cookieSameSite,
+    secure: cookieSecure,
     maxAge: 1000 * 60 * 60 * 4 // 4 hours
   }
 }));
-
-// Upload directories are accessed strictly through controlled endpoints:
-// Screenshots: GET /api/admin/screenshots/:filename (authenticated)
-// Active QR: GET /api/payment/qr (public active-only streamer)
 
 // Routes
 const registerRoutes = require('./routes/register');
@@ -117,4 +128,3 @@ app.listen(PORT, () => {
 });
 
 module.exports = app;
-

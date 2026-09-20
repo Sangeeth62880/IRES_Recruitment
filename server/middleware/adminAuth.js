@@ -64,7 +64,12 @@ function login(req, res) {
       }
       req.session.isAdmin = true;
       const csrfToken = generateCsrfToken(req, res);
-      return res.json({ success: true, csrfToken });
+      return req.session.save((saveErr) => {
+        if (saveErr) {
+          return res.status(500).json({ success: false, error: 'Failed to save session' });
+        }
+        return res.json({ success: true, csrfToken });
+      });
     });
   }
 

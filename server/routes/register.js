@@ -1,11 +1,10 @@
 const express = require('express');
 const multer = require('multer');
 const path = require('path');
-const fs = require('fs');
 const rateLimit = require('express-rate-limit');
 const crypto = require('crypto');
-const db = require('../db');
-const { isValidImage, getImageMimeType, ALLOWED_IMAGE_EXTENSIONS } = require('../utils/fileValidation');
+const supabase = require('../supabaseClient');
+const { isValidImageBuffer, getImageMimeTypeFromBuffer, ALLOWED_IMAGE_EXTENSIONS } = require('../utils/fileValidation');
 const { logSecurityEvent } = require('../utils/securityLogger');
 
 const router = express.Router();
@@ -25,21 +24,9 @@ const registerLimiter = rateLimit({
   }
 });
 
-// Configure multer for screenshot uploads (Finding 2 & 5)
-const screenshotStorage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    cb(null, path.join(__dirname, '..', 'data', 'uploads', 'screenshots'));
-  },
-  filename: (req, file, cb) => {
-    const ext = path.extname(file.originalname).toLowerCase();
-    const safeExt = ALLOWED_IMAGE_EXTENSIONS.includes(ext) ? ext : '.png';
-    const randomId = crypto.randomBytes(16).toString('hex');
-    cb(null, `scr_${Date.now()}_${randomId}${safeExt}`);
-  }
-});
-
+// Configure multer for screenshot uploads — memoryStorage for Supabase Storage (Finding 2 & 5)
 const uploadScreenshot = multer({
-  storage: screenshotStorage,
+  storage: multer.memoryStorage(),
   limits: { fileSize: 5 * 1024 * 1024 }, // 5MB
   fileFilter: (req, file, cb) => {
     const ext = path.extname(file.originalname).toLowerCase();
@@ -57,12 +44,15 @@ const uploadScreenshot = multer({
 /**
  * Helper: read the currently active fee tier from settings
  */
-function getActivePricing() {
-  const enabledRow = db.prepare("SELECT value FROM settings WHERE key = 'early_bird_enabled'").get();
+async function getActivePricing() {
+  const { data: enabledRow } = await supabase
+    .from('settings').select('value').eq('key', 'early_bird_enabled').maybeSingle();
   const earlyBirdEnabled = enabledRow && enabledRow.value === '1';
 
-  const earlyRow = db.prepare("SELECT value FROM settings WHERE key = 'early_bird_fee'").get();
-  const regularRow = db.prepare("SELECT value FROM settings WHERE key = 'regular_fee'").get();
+  const { data: earlyRow } = await supabase
+    .from('settings').select('value').eq('key', 'early_bird_fee').maybeSingle();
+  const { data: regularRow } = await supabase
+    .from('settings').select('value').eq('key', 'regular_fee').maybeSingle();
 
   const earlyBirdFee = earlyRow && earlyRow.value ? parseInt(earlyRow.value, 10) : 299;
   const regularFee = regularRow && regularRow.value ? parseInt(regularRow.value, 10) : 499;
@@ -86,7 +76,7 @@ router.post('/api/register', registerLimiter, (req, res, next) => {
     }
     next();
   });
-}, (req, res) => {
+}, async (req, res) => {
   try {
     const { name, email, phone, institution, utr_number } = req.body;
 
@@ -99,9 +89,6 @@ router.post('/api/register', registerLimiter, (req, res, next) => {
     if (!utr_number || !utr_number.trim()) missing.push('utr_number');
 
     if (missing.length > 0) {
-      if (req.file && fs.existsSync(req.file.path)) {
-        try { fs.unlinkSync(req.file.path); } catch (_) {}
-      }
       return res.status(400).json({
         success: false,
         error: `Missing required fields: ${missing.join(', ')}`
@@ -124,55 +111,44 @@ router.post('/api/register', registerLimiter, (req, res, next) => {
 
     // Finding 10: Server-side length caps and format checks
     if (trimmedName.length > 100) {
-      if (req.file && fs.existsSync(req.file.path)) try { fs.unlinkSync(req.file.path); } catch (_) {}
       return res.status(400).json({ success: false, error: 'Full name must not exceed 100 characters' });
     }
 
     if (trimmedInstitution.length > 150) {
-      if (req.file && fs.existsSync(req.file.path)) try { fs.unlinkSync(req.file.path); } catch (_) {}
       return res.status(400).json({ success: false, error: 'Institution name must not exceed 150 characters' });
     }
 
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (trimmedEmail.length > 100 || !emailRegex.test(trimmedEmail)) {
-      if (req.file && fs.existsSync(req.file.path)) try { fs.unlinkSync(req.file.path); } catch (_) {}
       return res.status(400).json({ success: false, error: 'Please enter a valid email address' });
     }
 
     const phoneRegex = /^[0-9+\-\s()]{7,20}$/;
     if (trimmedPhone.length > 20 || !phoneRegex.test(trimmedPhone)) {
-      if (req.file && fs.existsSync(req.file.path)) try { fs.unlinkSync(req.file.path); } catch (_) {}
       return res.status(400).json({ success: false, error: 'Please enter a valid phone number (max 20 characters)' });
     }
 
     // Validate UTR: exactly 12 digits
     if (!/^\d{12}$/.test(trimmedUtr)) {
-      if (fs.existsSync(req.file.path)) {
-        try { fs.unlinkSync(req.file.path); } catch (_) {}
-      }
       return res.status(400).json({
         success: false,
         error: 'UTR number must be exactly 12 digits (numeric only)'
       });
     }
 
-    // Finding 6: Reject duplicate / replayed UTR numbers
-    const existingRow = db.prepare('SELECT id FROM registrations WHERE utr_number = ?').get(trimmedUtr);
+    // Finding 6: Reject duplicate / replayed UTR numbers (app-level pre-insert check)
+    const { data: existingRow } = await supabase
+      .from('registrations').select('id').eq('utr_number', trimmedUtr).maybeSingle();
     if (existingRow) {
-      if (fs.existsSync(req.file.path)) {
-        try { fs.unlinkSync(req.file.path); } catch (_) {}
-      }
       return res.status(400).json({
         success: false,
         error: 'This UTR number has already been registered'
       });
     }
 
-    // Validate true file magic bytes (must be PNG or JPEG)
-    if (!isValidImage(req.file.path)) {
-      if (fs.existsSync(req.file.path)) {
-        try { fs.unlinkSync(req.file.path); } catch (_) {}
-      }
+    // Validate true file magic bytes (must be PNG or JPEG) — buffer-based
+    const verifiedMimeType = getImageMimeTypeFromBuffer(req.file.buffer);
+    if (!verifiedMimeType) {
       logSecurityEvent('REJECTED_UPLOAD', req, `magic byte validation failed (declared mimetype: ${req.file.mimetype})`);
       return res.status(400).json({
         success: false,
@@ -181,42 +157,65 @@ router.post('/api/register', registerLimiter, (req, res, next) => {
     }
 
     // Determine active fee tier at time of submission
-    const { tier } = getActivePricing();
+    const { tier } = await getActivePricing();
 
-    const screenshotPath = req.file.filename;
+    // Finding 5: Random-identifier filename generation (crypto.randomBytes-based)
+    const ext = path.extname(req.file.originalname).toLowerCase();
+    const safeExt = ALLOWED_IMAGE_EXTENSIONS.includes(ext) ? ext : '.png';
+    const randomId = crypto.randomBytes(16).toString('hex');
+    const storageKey = `scr_${Date.now()}_${randomId}${safeExt}`;
 
-    const stmt = db.prepare(`
-      INSERT INTO registrations (name, email, phone, institution, utr_number, fee_tier, screenshot_path)
-      VALUES (?, ?, ?, ?, ?, ?, ?)
-    `);
+    // Upload to Supabase Storage using verified MIME type (not client-declared)
+    const { error: uploadError } = await supabase.storage
+      .from('payment-screenshots')
+      .upload(storageKey, req.file.buffer, {
+        contentType: verifiedMimeType,
+        upsert: false
+      });
 
-    const info = stmt.run(
-      trimmedName,
-      trimmedEmail,
-      trimmedPhone,
-      trimmedInstitution,
-      trimmedUtr,
-      tier,
-      screenshotPath
-    );
+    if (uploadError) {
+      console.error('Supabase Storage upload error:', uploadError);
+      return res.status(500).json({ success: false, error: 'Server error during file upload' });
+    }
 
-    return res.json({ success: true, id: info.lastInsertRowid });
+    // Insert registration into Postgres
+    const { data: insertData, error: insertError } = await supabase
+      .from('registrations')
+      .insert({
+        name: trimmedName,
+        email: trimmedEmail,
+        phone: trimmedPhone,
+        institution: trimmedInstitution,
+        utr_number: trimmedUtr,
+        fee_tier: tier,
+        screenshot_storage_path: storageKey
+      })
+      .select('id')
+      .single();
+
+    if (insertError) {
+      // Clean up uploaded file if DB insert fails
+      await supabase.storage.from('payment-screenshots').remove([storageKey]);
+
+      // Finding 6: DB-level UNIQUE constraint catch
+      if (insertError.code === '23505') { // unique_violation
+        return res.status(400).json({ success: false, error: 'This UTR number has already been registered' });
+      }
+      console.error('Registration error:', insertError);
+      return res.status(500).json({ success: false, error: 'Server error during registration' });
+    }
+
+    return res.json({ success: true, id: insertData.id });
   } catch (err) {
-    if (req.file && fs.existsSync(req.file.path)) {
-      try { fs.unlinkSync(req.file.path); } catch (_) {}
-    }
-    if (err && (err.code === 'SQLITE_CONSTRAINT_UNIQUE' || (err.message && err.message.includes('UNIQUE constraint failed')))) {
-      return res.status(400).json({ success: false, error: 'This UTR number has already been registered' });
-    }
     console.error('Registration error:', err);
     return res.status(500).json({ success: false, error: 'Server error during registration' });
   }
 });
 
 // GET /api/settings/fee (public — shown on registration form)
-router.get('/api/settings/fee', (req, res) => {
+router.get('/api/settings/fee', async (req, res) => {
   try {
-    const pricing = getActivePricing();
+    const pricing = await getActivePricing();
     return res.json(pricing);
   } catch (err) {
     console.error('Error fetching fee:', err);
@@ -225,14 +224,21 @@ router.get('/api/settings/fee', (req, res) => {
 });
 
 // GET /api/settings/bank (public — shown on registration form if populated)
-router.get('/api/settings/bank', (req, res) => {
+router.get('/api/settings/bank', async (req, res) => {
   try {
     const fields = ['bank_name', 'account_holder', 'account_number', 'ifsc_code', 'branch_name'];
     const bankDetails = {};
-    fields.forEach(field => {
-      const row = db.prepare("SELECT value FROM settings WHERE key = ?").get(field);
-      bankDetails[field] = row ? row.value : '';
-    });
+
+    const { data: rows } = await supabase
+      .from('settings').select('key, value').in('key', fields);
+
+    // Initialize all fields to empty string
+    fields.forEach(field => { bankDetails[field] = ''; });
+    // Populate from query results
+    if (rows) {
+      rows.forEach(row => { bankDetails[row.key] = row.value || ''; });
+    }
+
     return res.json(bankDetails);
   } catch (err) {
     console.error('Error fetching bank settings:', err);
@@ -241,14 +247,19 @@ router.get('/api/settings/bank', (req, res) => {
 });
 
 // GET /api/settings/event (public — event info)
-router.get('/api/settings/event', (req, res) => {
+router.get('/api/settings/event', async (req, res) => {
   try {
     const fields = ['event_date', 'event_venue'];
     const eventInfo = {};
-    fields.forEach(field => {
-      const row = db.prepare("SELECT value FROM settings WHERE key = ?").get(field);
-      eventInfo[field] = row ? row.value : '';
-    });
+
+    const { data: rows } = await supabase
+      .from('settings').select('key, value').in('key', fields);
+
+    fields.forEach(field => { eventInfo[field] = ''; });
+    if (rows) {
+      rows.forEach(row => { eventInfo[row.key] = row.value || ''; });
+    }
+
     return res.json(eventInfo);
   } catch (err) {
     console.error('Error fetching event settings:', err);
@@ -257,10 +268,12 @@ router.get('/api/settings/event', (req, res) => {
 });
 
 // GET /api/settings/payment (public — display mode & qr image url)
-router.get('/api/settings/payment', (req, res) => {
+router.get('/api/settings/payment', async (req, res) => {
   try {
-    const modeRow = db.prepare("SELECT value FROM settings WHERE key = 'payment_display_mode'").get();
-    const qrRow = db.prepare("SELECT value FROM settings WHERE key = 'qr_image_filename'").get();
+    const { data: modeRow } = await supabase
+      .from('settings').select('value').eq('key', 'payment_display_mode').maybeSingle();
+    const { data: qrRow } = await supabase
+      .from('settings').select('value').eq('key', 'qr_storage_path').maybeSingle();
 
     const mode = modeRow && modeRow.value ? modeRow.value : 'bank';
     const hasQr = !!(qrRow && qrRow.value && qrRow.value.trim());
@@ -275,33 +288,34 @@ router.get('/api/settings/payment', (req, res) => {
   }
 });
 
-// GET /api/payment/qr (public — streams ONLY the currently active QR image)
-router.get('/api/payment/qr', (req, res) => {
+// GET /api/payment/qr (public — proxies ONLY the currently active QR image from Supabase Storage)
+router.get('/api/payment/qr', async (req, res) => {
   try {
     // Explicitly disallow any custom filename parameter or query attempt
     if (req.params.filename || req.query.filename) {
       return res.status(400).json({ success: false, error: 'Custom filename parameters are not allowed' });
     }
 
-    const row = db.prepare("SELECT value FROM settings WHERE key = 'qr_image_filename'").get();
+    const { data: row } = await supabase
+      .from('settings').select('value').eq('key', 'qr_storage_path').maybeSingle();
     if (!row || !row.value || !row.value.trim()) {
       return res.status(404).json({ success: false, error: 'No active QR code configured' });
     }
 
-    const filename = row.value.trim();
-    const qrDir = path.resolve(__dirname, '..', 'data', 'uploads', 'qr');
-    const resolvedPath = path.resolve(qrDir, filename);
+    const storagePath = row.value.trim();
 
-    // Defensive check to ensure resolved path is inside uploads/qr directory
-    if (!resolvedPath.startsWith(qrDir + path.sep)) {
-      return res.status(400).json({ success: false, error: 'Access denied' });
-    }
+    // Download the QR image from Supabase Storage and proxy it through the backend
+    // (preserves Content-Type/nosniff headers, avoids exposing signed URLs to public)
+    const { data: fileData, error: downloadError } = await supabase.storage
+      .from('qr-codes')
+      .download(storagePath);
 
-    if (!fs.existsSync(resolvedPath)) {
+    if (downloadError || !fileData) {
       return res.status(404).json({ success: false, error: 'QR code file not found' });
     }
 
-    const mimeType = getImageMimeType(resolvedPath);
+    const buffer = Buffer.from(await fileData.arrayBuffer());
+    const mimeType = getImageMimeTypeFromBuffer(buffer);
     if (!mimeType) {
       return res.status(400).json({ success: false, error: 'Invalid QR image format' });
     }
@@ -310,7 +324,7 @@ router.get('/api/payment/qr', (req, res) => {
     res.setHeader('X-Content-Type-Options', 'nosniff');
     res.setHeader('Content-Disposition', `inline; filename="qr${mimeType === 'image/jpeg' ? '.jpg' : '.png'}"`);
     res.setHeader('Cache-Control', 'no-cache, must-revalidate');
-    return res.sendFile(resolvedPath);
+    return res.send(buffer);
   } catch (err) {
     console.error('Error serving QR image:', err);
     return res.status(500).json({ success: false, error: 'Server error' });
