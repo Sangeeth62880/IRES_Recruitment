@@ -47,8 +47,8 @@ src/
   --accent-tan: #E8C9A0;
   --accent-cyan: #5FA8B0;
   --text: #EDEDED;
-  --text-muted: #8B93A7;
-  --font-pixel: 'VT323', monospace;   /* or Silkscreen / Departure Mono */
+  --font-pixel: 'Press Start 2P', monospace;
+  --font-mono: 'Share Tech Mono', monospace;
   --font-body: 'Inter', sans-serif;
 }
 ```

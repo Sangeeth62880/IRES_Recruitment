@@ -11,14 +11,14 @@ function NotFound() {
         <div style={{ marginTop: '16px', marginBottom: '32px' }}>
           <h1 style={{ 
             fontFamily: 'var(--font-pixel)', 
-            fontSize: '72px', 
+            fontSize: '44px', 
             color: 'var(--accent-orange)',
             lineHeight: 1,
             marginBottom: '16px'
           }}>404</h1>
           <h2 style={{ 
             fontFamily: 'var(--font-pixel)', 
-            fontSize: '24px', 
+            fontSize: '16px', 
             color: 'var(--accent-tan)',
             marginBottom: '12px' 
           }}>PAGE NOT FOUND</h2>

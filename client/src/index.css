@@ -162,10 +162,10 @@ a:hover {
 }
 
 .card-header__eyebrow {
-  font-family: var(--font-pixel-heading);
-  font-size: 11px;
+  font-family: var(--font-mono);
+  font-size: 12px;
   font-weight: 400;
-  letter-spacing: 0.28em;
+  letter-spacing: 0.18em;
   color: var(--accent-cyan);
   text-transform: uppercase;
   margin-bottom: 12px;
@@ -173,11 +173,11 @@ a:hover {
 }
 
 .card-header__title {
-  font-family: var(--font-pixel-heading);
-  font-size: clamp(24px, 5.2vw, 38px);
+  font-family: var(--font-pixel);
+  font-size: clamp(18px, 4.2vw, 26px);
   font-weight: 700;
-  letter-spacing: 0.08em;
-  line-height: 1.15;
+  letter-spacing: 0.04em;
+  line-height: 1.25;
   text-transform: uppercase;
   margin-bottom: 14px;
   background: linear-gradient(180deg, #F8E2CD 0%, var(--accent-tan) 26%, #E09865 55%, var(--accent-orange) 85%, #B85828 100%);
@@ -217,12 +217,13 @@ a:hover {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  padding: 8px 18px;
+  padding: 6px 14px;
   border: 2px solid var(--accent-orange);
   background: var(--accent-orange-dim);
   box-shadow: var(--pixel-shadow-sm-cyan);
-  font-family: var(--font-pixel);
-  font-size: 18px;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: 600;
   color: var(--accent-orange);
   letter-spacing: 0.05em;
   margin-bottom: 8px;
@@ -230,7 +231,8 @@ a:hover {
 }
 
 .pricing-badge__amount {
-  font-size: 22px;
+  font-size: 15px;
+  font-weight: 700;
   color: var(--accent-tan);
 }
 
@@ -248,9 +250,10 @@ a:hover {
 label,
 .label {
   display: block;
-  font-family: var(--font-pixel);
-  font-size: 16px;
-  letter-spacing: 0.08em;
+  font-family: var(--font-body);
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
   color: var(--text-muted);
   margin-bottom: 6px;
   text-transform: uppercase;
@@ -353,8 +356,8 @@ textarea {
   justify-content: center;
   gap: 8px;
   font-family: var(--font-pixel);
-  font-size: 20px;
-  letter-spacing: 0.08em;
+  font-size: 12px;
+  letter-spacing: 0.06em;
   border-radius: 0;
   cursor: pointer;
   white-space: nowrap;
@@ -410,7 +413,7 @@ textarea {
   color: var(--accent-cyan);
   box-shadow: var(--pixel-shadow-sm-cyan);
   padding: 8px 18px;
-  font-size: 16px;
+  font-size: 11px;
 }
 
 .btn--outline:hover:not(:disabled) {
@@ -424,15 +427,17 @@ textarea {
   box-shadow: 0 0 0 transparent;
 }
 
-/* Action button (Verify, Unverify, View) */
+/* Action button in dense admin tables (Verify, Unverify, View) — kept on readable body font per constraints */
 .btn--action {
   background: transparent;
   border: 2px solid var(--accent-cyan);
   color: var(--accent-cyan);
   box-shadow: var(--pixel-shadow-sm-cyan);
   padding: 5px 12px;
-  font-size: 14px;
-  font-family: var(--font-pixel);
+  font-size: 12px;
+  font-weight: 600;
+  font-family: var(--font-body);
+  letter-spacing: 0.02em;
 }
 
 .btn--action:hover:not(:disabled) {
@@ -446,7 +451,7 @@ textarea {
   box-shadow: 0 0 0 transparent;
 }
 
-/* Danger / Delete Action Button */
+/* Danger / Delete Action Button in dense admin tables — kept on readable body font */
 .btn--danger-action,
 .btn--delete {
   background: transparent;
@@ -454,8 +459,10 @@ textarea {
   color: var(--danger);
   box-shadow: var(--pixel-shadow-sm-danger);
   padding: 5px 12px;
-  font-size: 14px;
-  font-family: var(--font-pixel);
+  font-size: 12px;
+  font-weight: 600;
+  font-family: var(--font-body);
+  letter-spacing: 0.02em;
 }
 
 .btn--danger-action:hover:not(:disabled),
@@ -471,10 +478,14 @@ textarea {
   box-shadow: 0 0 0 transparent;
 }
 
+/* Admin dense view CSV Export button — readable body font */
 .btn--export {
   width: auto;
-  padding: 9px 24px;
-  font-size: 16px;
+  padding: 8px 16px;
+  font-family: var(--font-body);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
 }
 
 /* Disabled state */
@@ -521,16 +532,17 @@ a:focus-visible {
 }
 
 .bank-details-card__label {
-  font-family: var(--font-pixel);
-  font-size: 14px;
-  letter-spacing: 0.05em;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--text-subtle);
 }
 
 .bank-details-card__amount {
-  font-family: var(--font-pixel);
-  font-size: 22px;
+  font-family: var(--font-mono);
+  font-size: 20px;
+  font-weight: 700;
   color: var(--accent-orange);
 }
 
@@ -555,8 +567,10 @@ a:focus-visible {
 }
 
 .bank-row__value--mono {
-  font-family: 'Courier New', monospace;
+  font-family: var(--font-mono);
+  font-size: 13px;
   font-weight: 700;
+  letter-spacing: 0.04em;
 }
 
 .copy-btn {
@@ -564,9 +578,10 @@ a:focus-visible {
   border: 1px solid var(--accent-cyan);
   color: var(--accent-cyan);
   padding: 4px 10px;
-  font-family: var(--font-pixel);
-  font-size: 13px;
-  letter-spacing: 0.05em;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
   cursor: pointer;
   border-radius: 0;
   box-shadow: 2px 2px 0 var(--accent-cyan);
@@ -596,7 +611,7 @@ a:focus-visible {
 }
 
 /* ══════════════════════════════════════
-   PAYMENT DISPLAY & QR CODE
+   QR PAYMENT DISPLAY CARD
    ══════════════════════════════════════ */
 
 .payment-display-container {
@@ -618,13 +633,10 @@ a:focus-visible {
 .qr-payment-card {
   background: var(--bg-panel);
   border: 1px solid var(--border-strong);
-  box-shadow: var(--pixel-shadow-sm-cyan);
-  border-radius: 0;
-  padding: 20px;
+  box-shadow: var(--pixel-shadow-card);
+  padding: 24px;
+  margin-bottom: 24px;
   text-align: center;
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
 }
 
 .qr-payment-card__header {
@@ -637,16 +649,17 @@ a:focus-visible {
 }
 
 .qr-payment-card__label {
-  font-family: var(--font-pixel);
-  font-size: 14px;
-  letter-spacing: 0.05em;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--text-subtle);
 }
 
 .qr-payment-card__amount {
-  font-family: var(--font-pixel);
-  font-size: 22px;
+  font-family: var(--font-mono);
+  font-size: 20px;
+  font-weight: 700;
   color: var(--accent-orange);
 }
 
@@ -669,10 +682,11 @@ a:focus-visible {
 }
 
 .qr-payment-card__instruction {
-  font-family: var(--font-pixel);
-  font-size: 18px;
+  font-family: var(--font-mono);
+  font-size: 14px;
+  font-weight: 700;
   color: var(--accent-cyan);
-  letter-spacing: 0.05em;
+  letter-spacing: 0.08em;
   margin-bottom: 4px;
 }
 
@@ -698,8 +712,9 @@ a:focus-visible {
   background: var(--bg-input);
   border: 1px solid var(--border-strong);
   color: var(--text-muted);
-  font-family: var(--font-pixel);
-  font-size: 16px;
+  font-family: var(--font-body);
+  font-size: 13px;
+  font-weight: 600;
   cursor: pointer;
   text-align: center;
   border-radius: 0;
@@ -872,8 +887,10 @@ a:focus-visible {
 
 .success-screen h2 {
   font-family: var(--font-pixel);
-  font-size: 32px;
+  font-size: 16px;
+  line-height: 1.4;
   color: var(--accent-tan);
+  letter-spacing: 0.04em;
   margin-bottom: 8px;
 }
 
@@ -942,7 +959,8 @@ a:focus-visible {
 
 .sidebar__brand {
   font-family: var(--font-pixel);
-  font-size: 22px;
+  font-size: 13px;
+  line-height: 1.4;
   color: var(--accent-tan);
   text-align: center;
   margin-bottom: 8px;
@@ -950,12 +968,12 @@ a:focus-visible {
 }
 
 .sidebar__brand-sub {
-  font-family: var(--font-pixel);
-  font-size: 14px;
+  font-family: var(--font-mono);
+  font-size: 11px;
   color: var(--text-subtle);
   text-align: center;
   margin-bottom: 32px;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.12em;
   text-transform: uppercase;
 }
 
@@ -970,14 +988,15 @@ a:focus-visible {
 .sidebar__nav-item {
   display: block;
   padding: 10px 14px;
-  font-family: var(--font-pixel);
-  font-size: 18px;
+  font-family: var(--font-body);
+  font-size: 14px;
+  font-weight: 500;
   color: var(--text-muted);
   cursor: pointer;
   transition: color 0.12s ease, border-color 0.12s ease;
   text-decoration: none;
   border-left: 2px solid transparent;
-  letter-spacing: 0.03em;
+  letter-spacing: 0.01em;
 }
 
 .sidebar__nav-item:hover {
@@ -1064,8 +1083,10 @@ a:focus-visible {
 
 .admin-header h1 {
   font-family: var(--font-pixel);
-  font-size: 28px;
+  font-size: 18px;
+  line-height: 1.3;
   color: var(--accent-tan);
+  letter-spacing: 0.04em;
   margin-bottom: 2px;
 }
 
@@ -1089,9 +1110,10 @@ a:focus-visible {
 }
 
 .admin-card__heading {
-  font-family: var(--font-pixel);
-  font-size: 16px;
-  letter-spacing: 0.08em;
+  font-family: var(--font-body);
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
   color: var(--text-subtle);
   padding-bottom: 12px;
   margin-bottom: 16px;
@@ -1153,8 +1175,10 @@ tbody tr:hover td {
 
 .badge {
   display: inline-block;
-  font-family: var(--font-pixel);
-  font-size: 14px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  font-weight: 600;
   padding: 2px 8px;
   border-radius: 0;
   box-shadow: 2px 2px 0 currentColor;
@@ -1217,8 +1241,9 @@ tbody tr:hover td {
 
 .filter-toggle__btn {
   padding: 8px 14px;
-  font-family: var(--font-pixel);
-  font-size: 14px;
+  font-family: var(--font-body);
+  font-size: 13px;
+  font-weight: 600;
   background: transparent;
   color: var(--text-muted);
   border: none;
@@ -1263,8 +1288,9 @@ tbody tr:hover td {
 }
 
 .section-header h2 {
-  font-family: var(--font-pixel);
-  font-size: 24px;
+  font-family: var(--font-body);
+  font-size: 18px;
+  font-weight: 700;
   color: var(--accent-tan);
 }
 
@@ -1366,23 +1392,24 @@ tbody tr:hover td {
 
 .login-card__brand {
   font-family: var(--font-pixel);
-  font-size: 28px;
+  font-size: 16px;
+  line-height: 1.3;
   color: var(--accent-tan);
   margin-bottom: 4px;
 }
 
 .login-card__brand-sub {
-  font-family: var(--font-pixel);
-  font-size: 14px;
+  font-family: var(--font-mono);
+  font-size: 11px;
   color: var(--text-subtle);
   margin-bottom: 28px;
-  letter-spacing: 0.1em;
+  letter-spacing: 0.12em;
   text-transform: uppercase;
 }
 
 .login-card h2 {
   font-family: var(--font-pixel);
-  font-size: 24px;
+  font-size: 14px;
   color: var(--accent-cyan);
   margin-bottom: 24px;
   letter-spacing: 0.05em;
@@ -1418,9 +1445,10 @@ tbody tr:hover td {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  font-family: var(--font-pixel);
-  font-size: 14px;
+  font-family: var(--font-mono);
+  font-size: 12px;
   letter-spacing: 0.05em;
+  font-weight: 600;
   padding: 4px 10px;
   border: 1px solid var(--accent-cyan);
   color: var(--accent-cyan);

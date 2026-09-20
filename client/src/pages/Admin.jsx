@@ -495,7 +495,7 @@ function Admin() {
           </ul>
         </nav>
         <div className="sidebar__footer">
-          <button className="btn btn--outline" style={{ width: '100%', fontSize: 14 }} onClick={handleLogout}>
+          <button className="btn btn--outline" style={{ width: '100%', fontSize: 11 }} onClick={handleLogout}>
             LOGOUT
           </button>
         </div>
@@ -577,7 +577,7 @@ function Admin() {
                           <td style={{ fontWeight: 500 }}>{r.name}</td>
                           <td style={{ fontSize: 12 }}>{r.email || '—'}</td>
                           <td style={{ fontWeight: 500 }}>{r.institution}</td>
-                          <td style={{ fontFamily: "'Courier New', monospace", fontSize: 12, letterSpacing: '0.02em' }}>{r.utr_number}</td>
+                          <td style={{ fontFamily: "var(--font-mono)", fontSize: 13, letterSpacing: '0.04em' }}>{r.utr_number}</td>
                           <td>
                             {r.fee_tier && (
                               <span className={`badge ${tierInfo.className}`}>

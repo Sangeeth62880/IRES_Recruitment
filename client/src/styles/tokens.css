@@ -8,9 +8,9 @@
   --accent-tan: #E8C9A0;
   --accent-cyan: #5FA8B0;
   --text: #EDEDED;
-  --text-muted: #8B93A7;
-  --font-pixel: 'VT323', 'Silkscreen', monospace;
-  --font-pixel-heading: 'Silkscreen', 'VT323', monospace;
+  /* Typography — 'Press Start 2P' from main site; 'Share Tech Mono' thematically consistent with imported arcade font; 'Inter' for legibility */
+  --font-pixel: 'Press Start 2P', monospace;
+  --font-mono: 'Share Tech Mono', monospace;
   --font-body: 'Inter', sans-serif;
 
   /* ══════════════════════════════════════
