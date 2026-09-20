@@ -47,7 +47,9 @@ const PORT = process.env.PORT || 3001;
 const helmet = require('helmet');
 
 // Middleware
-app.use(helmet());
+app.use(helmet({
+  crossOriginResourcePolicy: { policy: "cross-origin" }
+}));
 // CORS Configuration: explicit allowlist from ALLOWED_ORIGINS env var, dev fallback only
 const allowedOrigins = process.env.ALLOWED_ORIGINS
   ? process.env.ALLOWED_ORIGINS.split(',').map(s => s.trim()).filter(Boolean)

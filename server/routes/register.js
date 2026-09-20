@@ -322,6 +322,7 @@ router.get('/api/payment/qr', async (req, res) => {
 
     res.setHeader('Content-Type', mimeType);
     res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
     res.setHeader('Content-Disposition', `inline; filename="qr${mimeType === 'image/jpeg' ? '.jpg' : '.png'}"`);
     res.setHeader('Cache-Control', 'no-cache, must-revalidate');
     return res.send(buffer);
