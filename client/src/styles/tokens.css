@@ -1,0 +1,46 @@
+:root {
+  /* ══════════════════════════════════════
+     CORE DESIGN TOKENS — SpaceUp Vol 8
+     ══════════════════════════════════════ */
+  --bg: #0B0E1A;
+  --bg-panel: #131A2C;
+  --accent-orange: #D4703A;
+  --accent-tan: #E8C9A0;
+  --accent-cyan: #5FA8B0;
+  --text: #EDEDED;
+  --text-muted: #8B93A7;
+  --font-pixel: 'VT323', 'Silkscreen', monospace;
+  --font-pixel-heading: 'Silkscreen', 'VT323', monospace;
+  --font-body: 'Inter', sans-serif;
+
+  /* ══════════════════════════════════════
+     SEMANTIC DERIVATIONS
+     ══════════════════════════════════════ */
+  --bg-input: #0E1424;
+  --border: #232D48;
+  --border-strong: #2E3B5D;
+  --border-focus: var(--accent-cyan);
+  
+  --accent-cyan-dim: rgba(95, 168, 176, 0.15);
+  --accent-cyan-glow: rgba(95, 168, 176, 0.35);
+  --accent-orange-dim: rgba(212, 112, 58, 0.15);
+  --accent-orange-glow: rgba(212, 112, 58, 0.35);
+
+  --danger: #E05252;
+  --danger-dim: rgba(224, 82, 82, 0.15);
+  --success: #3ECF8E;
+  --success-dim: rgba(62, 207, 142, 0.15);
+  --warning: #E5A93C;
+  --warning-dim: rgba(229, 169, 60, 0.15);
+
+  --qr-bg: #FFFFFF;
+  --qr-fg: #000000;
+
+  /* 3D Pixel Button Offsets */
+  --pixel-shadow-cyan: 4px 4px 0 var(--accent-cyan);
+  --pixel-shadow-orange: 4px 4px 0 var(--accent-orange);
+  --pixel-shadow-sm-cyan: 3px 3px 0 var(--accent-cyan);
+  --pixel-shadow-sm-orange: 3px 3px 0 var(--accent-orange);
+  --pixel-shadow-sm-danger: 3px 3px 0 var(--danger);
+  --pixel-shadow-card: 6px 6px 0 var(--border);
+}

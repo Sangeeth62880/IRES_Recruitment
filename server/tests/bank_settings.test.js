@@ -25,15 +25,21 @@ function assert(condition, message) {
   if (!condition) throw new Error(message || 'Assertion failed');
 }
 
+let csrfToken = '';
+
 async function loginAsAdmin() {
   const res = await fetch(`${BASE}/api/admin/login`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', 'X-Forwarded-For': '10.8.0.1' },
     body: JSON.stringify({ password: 'admin123' })
   });
-  const setCookie = res.headers.getSetCookie ? res.headers.getSetCookie() : [res.headers.get('set-cookie')];
-  if (setCookie && setCookie[0]) {
-    sessionCookie = setCookie[0].split(';')[0];
+  const setCookies = res.headers.getSetCookie ? res.headers.getSetCookie() : [res.headers.get('set-cookie')];
+  if (setCookies && setCookies.length > 0) {
+    sessionCookie = setCookies.map(c => c.split(';')[0]).join('; ');
+  }
+  const data = await res.json();
+  if (data.csrfToken) {
+    csrfToken = data.csrfToken;
   }
 }
 
@@ -42,7 +48,9 @@ function adminFetch(url, options = {}) {
     ...options,
     headers: {
       ...options.headers,
-      'Cookie': sessionCookie
+      'X-Forwarded-For': '10.8.0.1',
+      'Cookie': sessionCookie,
+      ...(csrfToken ? { 'X-CSRF-Token': csrfToken } : {})
     }
   });
 }

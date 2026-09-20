@@ -48,25 +48,53 @@ test('settings table exists', () => {
   assert(row && row.name === 'settings', 'settings table not found');
 });
 
-// Test 2: Insert and read a registration row
+// Test 2: Verify new schema columns exist
+test('registrations table has correct columns', () => {
+  const columns = db.pragma('table_info(registrations)');
+  const colNames = columns.map(c => c.name);
+  
+  // New required columns
+  assert(colNames.includes('name'), 'Missing column: name');
+  assert(colNames.includes('email'), 'Missing column: email');
+  assert(colNames.includes('phone'), 'Missing column: phone');
+  assert(colNames.includes('institution'), 'Missing column: institution');
+  assert(colNames.includes('utr_number'), 'Missing column: utr_number');
+  assert(colNames.includes('fee_tier'), 'Missing column: fee_tier');
+  assert(colNames.includes('screenshot_path'), 'Missing column: screenshot_path');
+  assert(colNames.includes('verified'), 'Missing column: verified');
+  assert(colNames.includes('flagged'), 'Missing column: flagged');
+  assert(colNames.includes('payment_status'), 'Missing column: payment_status');
+  assert(colNames.includes('submitted_at'), 'Missing column: submitted_at');
+  
+  // Old columns should NOT exist
+  assert(!colNames.includes('department'), 'Column "department" should be removed');
+  assert(!colNames.includes('year'), 'Column "year" should be removed');
+  assert(!colNames.includes('team_selected'), 'Column "team_selected" should be removed');
+});
+
+// Test 3: Insert and read a registration row with new schema
 test('insert and read a registration row', () => {
+  const testUtr = '98' + Date.now().toString().slice(-10);
   const insert = db.prepare(`
-    INSERT INTO registrations (name, department, year, team_selected, email, phone, utr_number)
-    VALUES (?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO registrations (name, email, phone, institution, utr_number, fee_tier)
+    VALUES (?, ?, ?, ?, ?, ?)
   `);
-  const info = insert.run('Test User', 'CSE', '2nd', 'Technical', 'test@test.com', '9876543210', '123456789012');
+  const info = insert.run('Test User', 'test@test.com', '9876543210', 'Test University', testUtr, 'early_bird');
   assert(info.changes === 1, 'Insert did not affect 1 row');
 
   const row = db.prepare('SELECT * FROM registrations WHERE id = ?').get(info.lastInsertRowid);
   assert(row.name === 'Test User', `Expected name 'Test User', got '${row.name}'`);
-  assert(row.utr_number === '123456789012', `Expected utr '123456789012', got '${row.utr_number}'`);
+  assert(row.email === 'test@test.com', `Expected email 'test@test.com', got '${row.email}'`);
+  assert(row.institution === 'Test University', `Expected institution 'Test University', got '${row.institution}'`);
+  assert(row.fee_tier === 'early_bird', `Expected fee_tier 'early_bird', got '${row.fee_tier}'`);
+  assert(row.utr_number === testUtr, `Expected utr '${testUtr}', got '${row.utr_number}'`);
   assert(row.verified === 0, `Expected verified=0, got ${row.verified}`);
 
   // Clean up
   db.prepare('DELETE FROM registrations WHERE id = ?').run(info.lastInsertRowid);
 });
 
-// Test 3: Insert and read a settings row
+// Test 4: Insert and read a settings row
 test('insert and read a settings row', () => {
   const insert = db.prepare('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)');
   insert.run('test_key', 'test_value');

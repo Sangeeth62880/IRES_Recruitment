@@ -1,10 +1,4 @@
 import { useState, useEffect } from 'react'
-import { useParams } from 'react-router-dom'
-import NotFound from './NotFound'
-import constants from '../../../shared/constants.json'
-const { VALID_TEAMS, TEAM_LABELS } = constants
-
-const YEARS = ['1st', '2nd', '3rd', '4th']
 
 function AnimatedCheck() {
   return (
@@ -18,22 +12,22 @@ function AnimatedCheck() {
 }
 
 function Register() {
-  const { team } = useParams()
   const [formData, setFormData] = useState({
     name: '',
-    department: '',
-    year: '',
-    team_selected: '',
+    email: '',
+    phone: '',
+    institution: '',
     utr_number: ''
   })
-  const [isValidating, setIsValidating] = useState(false)
-  const [isValidCode, setIsValidCode] = useState(true)
   const [errors, setErrors] = useState({})
   const [submitting, setSubmitting] = useState(false)
   const [submitted, setSubmitted] = useState(false)
   const [serverError, setServerError] = useState('')
 
-  const [fee, setFee] = useState(349)
+  const [fee, setFee] = useState(null)
+  const [feeTier, setFeeTier] = useState('regular')
+  const [paymentMode, setPaymentMode] = useState('bank')
+  const [qrImageUrl, setQrImageUrl] = useState(null)
   const [bankDetails, setBankDetails] = useState(null)
   const [copiedField, setCopiedField] = useState(null)
 
@@ -43,7 +37,18 @@ function Register() {
   useEffect(() => {
     fetch('/api/settings/fee')
       .then(r => r.json())
-      .then(data => { if (data.fee !== undefined) setFee(data.fee) })
+      .then(data => {
+        if (data.fee !== undefined) setFee(data.fee)
+        if (data.tier) setFeeTier(data.tier)
+      })
+      .catch(() => {})
+
+    fetch('/api/settings/payment')
+      .then(r => r.json())
+      .then(data => {
+        if (data.payment_display_mode) setPaymentMode(data.payment_display_mode)
+        if (data.qr_image_url) setQrImageUrl(data.qr_image_url)
+      })
       .catch(() => {})
 
     fetch('/api/settings/bank')
@@ -55,31 +60,6 @@ function Register() {
       })
       .catch(() => {})
   }, [])
-
-  useEffect(() => {
-    if (team) {
-      setIsValidating(true)
-      fetch(`/api/register/verify-team?slug=${team}`)
-        .then(r => r.json())
-        .then(data => {
-          if (data.success) {
-            setIsValidCode(true)
-            setFormData(prev => ({ ...prev, team_selected: data.label }))
-          } else {
-            setIsValidCode(false)
-          }
-        })
-        .catch(() => {
-          setIsValidCode(false)
-        })
-        .finally(() => {
-          setIsValidating(false)
-        })
-    } else {
-      setFormData(prev => ({ ...prev, team_selected: '' }))
-      setIsValidCode(true)
-    }
-  }, [team])
 
   function handleCopy(text, field) {
     navigator.clipboard.writeText(text)
@@ -121,9 +101,9 @@ function Register() {
   function validate() {
     const errs = {}
     if (!formData.name.trim()) errs.name = 'Full name is required'
-    if (!formData.department.trim()) errs.department = 'Department is required'
-    if (!formData.team_selected) errs.team_selected = 'Select your team'
-    if (!formData.year) errs.year = 'Select your year'
+    if (!formData.email.trim()) errs.email = 'Email is required'
+    if (!formData.phone.trim()) errs.phone = 'Phone number is required'
+    if (!formData.institution.trim()) errs.institution = 'Institution / organization is required'
     if (!formData.utr_number.trim()) {
       errs.utr_number = 'UTR / UPI Reference number is required'
     } else if (!/^\d{12}$/.test(formData.utr_number.trim())) {
@@ -144,9 +124,9 @@ function Register() {
     setSubmitting(true)
     const fd = new FormData()
     fd.append('name', formData.name.trim())
-    fd.append('department', formData.department.trim())
-    fd.append('year', formData.year.trim())
-    fd.append('team_selected', formData.team_selected.trim())
+    fd.append('email', formData.email.trim())
+    fd.append('phone', formData.phone.trim())
+    fd.append('institution', formData.institution.trim())
     fd.append('utr_number', formData.utr_number.trim())
     if (screenshot) fd.append('screenshot', screenshot)
 
@@ -172,141 +152,128 @@ function Register() {
   if (submitted) {
     return (
       <div className="page-bg page-bg--center">
+        <div className="page-bg__cosmos" aria-hidden="true" />
+        <div className="page-bg__scanlines" aria-hidden="true" />
         <div className="form-card">
           <div className="card-header">
-            <div className="card-header__logos">
-              <img src="/seds_logo.png" alt="SEDS CUSAT Logo" className="logo-seds" />
-              <div className="logo-divider"></div>
-              <img src="/ires_logo.png" alt="IRES Logo" className="logo-ires" />
-            </div>
+            <p className="card-header__eyebrow">INDIA'S BIGGEST SPACE UNCONFERENCE</p>
+            <h1 className="card-header__title" style={{ fontSize: 'clamp(20px, 4.5vw, 30px)', marginBottom: '16px' }}>SPACEUP VOL 8</h1>
           </div>
           <div className="success-screen">
             <AnimatedCheck />
-            <h2>You're Registered</h2>
-            <p>Your application has been submitted.</p>
+            <h2>REGISTRATION CONFIRMED</h2>
+            <p>Your spot has been reserved. We'll verify your payment and send confirmation to your email.</p>
           </div>
         </div>
       </div>
     )
-  }
-
-  // ── Loading state ──
-  if (isValidating) {
-    return (
-      <div className="page-bg page-bg--center">
-        <div className="form-card" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '40px' }}>
-          <span className="spinner" style={{ width: '40px', height: '40px', border: '4px solid var(--blue-light)', borderTopColor: 'var(--blue)', borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
-          <p style={{ marginTop: '20px', color: 'var(--text-muted)', fontFamily: "'DM Sans', sans-serif" }}>Verifying registration link...</p>
-        </div>
-      </div>
-    )
-  }
-
-  // ── Invalid Team link ──
-  if (!isValidCode) {
-    return <NotFound />
   }
 
   // ── Form ──
   return (
     <div className="page-bg">
+      <div className="page-bg__cosmos" aria-hidden="true" />
+      <div className="page-bg__scanlines" aria-hidden="true" />
       <div className="form-card">
         {/* Header */}
         <div className="card-header">
-          <div className="card-header__logos">
-            <img src="/seds_logo.png" alt="SEDS CUSAT Logo" className="logo-seds" />
-            <div className="logo-divider"></div>
-            <img src="/ires_logo.png" alt="IRES Logo" className="logo-ires" />
-          </div>
-          <h1 className="card-header__title">Recruitment 2026</h1>
-          <p className="card-header__subtitle">Innovation Research and Exploration of Space</p>
+          <p className="card-header__eyebrow">INDIA'S BIGGEST SPACE UNCONFERENCE</p>
+          <h1 className="card-header__title">SPACEUP VOL 8</h1>
+          <p className="card-header__subtitle">Reserve your spot — complete payment and register below</p>
           <hr className="card-header__rule" />
         </div>
 
-        {/* Bank Transfer Details Section */}
-        {bankDetails && (
-          <div className="bank-details-card" style={{
-            background: '#FFFFFF',
-            border: '1px solid var(--border)',
-            borderRadius: 'var(--radius-lg)',
-            padding: '20px',
-            marginBottom: '24px',
-            boxShadow: '0 4px 12px rgba(15, 23, 42, 0.03)',
-            textAlign: 'left'
-          }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', borderBottom: '1px solid var(--blue-light)', paddingBottom: '12px' }}>
-              <span style={{ fontSize: '11px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-subtle)' }}>Payment Mode</span>
-              <span style={{ fontSize: '18px', fontWeight: '850', color: 'var(--blue)' }}>&#8377;{fee}</span>
-            </div>
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
-                <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Bank</span>
-                <span style={{ fontSize: '14px', fontWeight: '600', color: 'var(--text)' }}>{bankDetails.bank_name}</span>
-              </div>
-              
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
-                <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Account Name</span>
-                <span style={{ fontSize: '14px', fontWeight: '600', color: 'var(--text)' }}>{bankDetails.account_holder}</span>
-              </div>
-
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Account Number</span>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <span style={{ fontSize: '14px', fontFamily: "'Courier New', monospace", fontWeight: '700', color: 'var(--text)' }}>{bankDetails.account_number}</span>
-                  <button
-                    type="button"
-                    onClick={() => handleCopy(bankDetails.account_number, 'account_number')}
-                    style={{
-                      padding: '4px 8px',
-                      fontSize: '11px',
-                      background: copiedField === 'account_number' ? 'var(--success)' : 'var(--blue-light)',
-                      color: copiedField === 'account_number' ? '#FFFFFF' : 'var(--blue)',
-                      border: 'none',
-                      borderRadius: '4px',
-                      cursor: 'pointer',
-                      fontWeight: '600',
-                      transition: 'all 0.15s ease'
-                    }}
-                  >
-                    {copiedField === 'account_number' ? 'Copied!' : 'Copy'}
-                  </button>
-                </div>
-              </div>
-
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>IFSC Code</span>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <span style={{ fontSize: '14px', fontFamily: "'Courier New', monospace", fontWeight: '700', color: 'var(--text)' }}>{bankDetails.ifsc_code}</span>
-                  <button
-                    type="button"
-                    onClick={() => handleCopy(bankDetails.ifsc_code, 'ifsc_code')}
-                    style={{
-                      padding: '4px 8px',
-                      fontSize: '11px',
-                      background: copiedField === 'ifsc_code' ? 'var(--success)' : 'var(--blue-light)',
-                      color: copiedField === 'ifsc_code' ? '#FFFFFF' : 'var(--blue)',
-                      border: 'none',
-                      borderRadius: '4px',
-                      cursor: 'pointer',
-                      fontWeight: '600',
-                      transition: 'all 0.15s ease'
-                    }}
-                  >
-                    {copiedField === 'ifsc_code' ? 'Copied!' : 'Copy'}
-                  </button>
-                </div>
-              </div>
-
-              {bankDetails.branch_name && (
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
-                  <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Branch</span>
-                  <span style={{ fontSize: '14px', fontWeight: '500', color: 'var(--text)' }}>{bankDetails.branch_name}</span>
-                </div>
-              )}
+        {/* Pricing Badge */}
+        {fee !== null && (
+          <div style={{ textAlign: 'center', marginBottom: '24px' }}>
+            <div className={`pricing-badge ${feeTier === 'early_bird' ? 'pricing-badge--early-bird' : ''}`}>
+              {feeTier === 'early_bird' ? '// EARLY BIRD PRICING' : '// REGISTRATION FEE'}
+              {' '}<span className="pricing-badge__amount">₹{fee}</span>
             </div>
           </div>
         )}
+
+        {/* Payment Display (QR / Bank / Both) */}
+        {(() => {
+          const showQr = (paymentMode === 'qr' || paymentMode === 'both') && qrImageUrl;
+          const showBank = (paymentMode === 'bank' || paymentMode === 'both') && bankDetails;
+
+          if (!showQr && !showBank) return null;
+
+          return (
+            <div className={`payment-display-container ${showQr && showBank ? 'payment-display-container--both' : ''}`}>
+              {showQr && (
+                <div className="qr-payment-card">
+                  <div className="qr-payment-card__header">
+                    <span className="qr-payment-card__label">UPI Payment</span>
+                    {fee !== null && <span className="qr-payment-card__amount">₹{fee}</span>}
+                  </div>
+                  <div className="qr-payment-card__frame">
+                    <img src={qrImageUrl} alt="UPI Payment QR Code" className="qr-payment-card__image" />
+                  </div>
+                  <p className="qr-payment-card__instruction">SCAN TO PAY VIA UPI</p>
+                  <p className="qr-payment-card__subtext">Use GPay, PhonePe, Paytm or any UPI app</p>
+                </div>
+              )}
+
+              {showBank && (
+                <div className="bank-details-card" style={{ marginBottom: 0 }}>
+                  <div className="bank-details-card__header">
+                    <span className="bank-details-card__label">Bank Transfer Details</span>
+                    {fee !== null && <span className="bank-details-card__amount">₹{fee}</span>}
+                  </div>
+
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                    <div className="bank-row">
+                      <span className="bank-row__label">Bank</span>
+                      <span className="bank-row__value">{bankDetails.bank_name}</span>
+                    </div>
+                    
+                    <div className="bank-row">
+                      <span className="bank-row__label">Account Name</span>
+                      <span className="bank-row__value">{bankDetails.account_holder}</span>
+                    </div>
+
+                    <div className="bank-row">
+                      <span className="bank-row__label">Account Number</span>
+                      <span style={{ display: 'flex', alignItems: 'center' }}>
+                        <span className="bank-row__value bank-row__value--mono">{bankDetails.account_number}</span>
+                        <button
+                          type="button"
+                          onClick={() => handleCopy(bankDetails.account_number, 'account_number')}
+                          className={`copy-btn ${copiedField === 'account_number' ? 'copy-btn--copied' : ''}`}
+                        >
+                          {copiedField === 'account_number' ? 'COPIED' : 'COPY'}
+                        </button>
+                      </span>
+                    </div>
+
+                    <div className="bank-row">
+                      <span className="bank-row__label">IFSC Code</span>
+                      <span style={{ display: 'flex', alignItems: 'center' }}>
+                        <span className="bank-row__value bank-row__value--mono">{bankDetails.ifsc_code}</span>
+                        <button
+                          type="button"
+                          onClick={() => handleCopy(bankDetails.ifsc_code, 'ifsc_code')}
+                          className={`copy-btn ${copiedField === 'ifsc_code' ? 'copy-btn--copied' : ''}`}
+                        >
+                          {copiedField === 'ifsc_code' ? 'COPIED' : 'COPY'}
+                        </button>
+                      </span>
+                    </div>
+
+                    {bankDetails.branch_name && (
+                      <div className="bank-row">
+                        <span className="bank-row__label">Branch</span>
+                        <span className="bank-row__value">{bankDetails.branch_name}</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        })()}
 
         {serverError && <div className="alert alert--error">{serverError}</div>}
 
@@ -317,32 +284,24 @@ function Register() {
             {errors.name && <p className="error-text">{errors.name}</p>}
           </div>
 
-          <div className="form-group">
-            <label htmlFor="reg-department">Department</label>
-            <input type="text" id="reg-department" name="department" value={formData.department} onChange={handleChange} placeholder="e.g. CSE, ECE, ME" />
-            {errors.department && <p className="error-text">{errors.department}</p>}
+          <div className="form-row">
+            <div className="form-group">
+              <label htmlFor="reg-email">Email</label>
+              <input type="email" id="reg-email" name="email" value={formData.email} onChange={handleChange} placeholder="you@example.com" />
+              {errors.email && <p className="error-text">{errors.email}</p>}
+            </div>
+
+            <div className="form-group">
+              <label htmlFor="reg-phone">Phone</label>
+              <input type="tel" id="reg-phone" name="phone" value={formData.phone} onChange={handleChange} placeholder="10-digit mobile" />
+              {errors.phone && <p className="error-text">{errors.phone}</p>}
+            </div>
           </div>
 
-          {!team && (
-            <div className="form-group">
-              <label htmlFor="reg-team">Team</label>
-              <select id="reg-team" name="team_selected" value={formData.team_selected} onChange={handleChange}>
-                <option value="">Select team</option>
-                {VALID_TEAMS.map(t => (
-                  <option key={t} value={TEAM_LABELS[t]}>{TEAM_LABELS[t]}</option>
-                ))}
-              </select>
-              {errors.team_selected && <p className="error-text">{errors.team_selected}</p>}
-            </div>
-          )}
-
           <div className="form-group">
-            <label htmlFor="reg-year">Year</label>
-            <select id="reg-year" name="year" value={formData.year} onChange={handleChange}>
-              <option value="">Select year</option>
-              {YEARS.map(y => <option key={y} value={y}>{y} Year</option>)}
-            </select>
-            {errors.year && <p className="error-text">{errors.year}</p>}
+            <label htmlFor="reg-institution">Institution / Organization</label>
+            <input type="text" id="reg-institution" name="institution" value={formData.institution} onChange={handleChange} placeholder="e.g. CUSAT, IIT Bombay, ISRO" />
+            {errors.institution && <p className="error-text">{errors.institution}</p>}
           </div>
 
           <div className="form-group">
@@ -376,7 +335,7 @@ function Register() {
           </div>
 
           <button type="submit" className="btn btn--primary" disabled={submitting}>
-            {submitting ? <><span className="spinner" /> Submitting...</> : 'Submit Registration'}
+            {submitting ? <><span className="spinner" /> SUBMITTING...</> : '[ CONFIRM REGISTRATION ]'}
           </button>
         </form>
       </div>

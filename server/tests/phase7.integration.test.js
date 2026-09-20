@@ -35,20 +35,27 @@ function makeFormData(payload) {
       fd.append(key, String(value));
     }
   }
-  const blob = new Blob([Buffer.from('dummy image content')], { type: 'image/png' });
+  const pngHeader = Buffer.from([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]);
+  const blob = new Blob([Buffer.concat([pngHeader, Buffer.from('integration test content')])], { type: 'image/png' });
   fd.append('screenshot', blob, 'integration_test.png');
   return fd;
 }
 
+let csrfToken = '';
+
 async function loginAsAdmin() {
   const res = await fetch(`${BASE}/api/admin/login`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', 'X-Forwarded-For': '10.7.0.1' },
     body: JSON.stringify({ password: 'admin123' })
   });
-  const setCookie = res.headers.getSetCookie ? res.headers.getSetCookie() : [res.headers.get('set-cookie')];
-  if (setCookie && setCookie[0]) {
-    sessionCookie = setCookie[0].split(';')[0];
+  const setCookies = res.headers.getSetCookie ? res.headers.getSetCookie() : [res.headers.get('set-cookie')];
+  if (setCookies && setCookies.length > 0) {
+    sessionCookie = setCookies.map(c => c.split(';')[0]).join('; ');
+  }
+  const data = await res.json();
+  if (data.csrfToken) {
+    csrfToken = data.csrfToken;
   }
 }
 
@@ -57,7 +64,9 @@ function adminFetch(url, options = {}) {
     ...options,
     headers: {
       ...options.headers,
-      'Cookie': sessionCookie
+      'X-Forwarded-For': '10.7.0.1',
+      'Cookie': sessionCookie,
+      ...(csrfToken ? { 'X-CSRF-Token': csrfToken } : {})
     }
   });
 }
@@ -72,9 +81,7 @@ async function run() {
     await test('Step 1: Submit a registration', async () => {
       const payload = {
         name: 'Integration Test User',
-        department: 'CSE',
-        year: '2nd',
-        team_selected: 'Technical',
+        institution: 'CUSAT University',
         email: 'integration@test.com',
         phone: '9876543210',
         utr_number: TEST_UTR
@@ -82,6 +89,7 @@ async function run() {
 
       const res = await fetch(`${BASE}/api/register`, {
         method: 'POST',
+        headers: { 'X-Forwarded-For': '10.7.0.1' },
         body: makeFormData(payload)
       });
       const data = await res.json();

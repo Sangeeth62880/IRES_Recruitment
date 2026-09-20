@@ -28,16 +28,21 @@ function assert(condition, message) {
   if (!condition) throw new Error(message || 'Assertion failed');
 }
 
+let csrfToken = '';
+
 async function loginAsAdmin() {
   const res = await fetch(`${BASE}/api/admin/login`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', 'X-Forwarded-For': '10.3.0.1' },
     body: JSON.stringify({ password: 'admin123' })
   });
-  // Extract Set-Cookie header
-  const setCookie = res.headers.getSetCookie ? res.headers.getSetCookie() : [res.headers.get('set-cookie')];
-  if (setCookie && setCookie[0]) {
-    sessionCookie = setCookie[0].split(';')[0];
+  const setCookies = res.headers.getSetCookie ? res.headers.getSetCookie() : [res.headers.get('set-cookie')];
+  if (setCookies && setCookies.length > 0) {
+    sessionCookie = setCookies.map(c => c.split(';')[0]).join('; ');
+  }
+  const data = await res.json();
+  if (data.csrfToken) {
+    csrfToken = data.csrfToken;
   }
   return res;
 }
@@ -47,7 +52,9 @@ function adminFetch(url, options = {}) {
     ...options,
     headers: {
       ...options.headers,
-      'Cookie': sessionCookie
+      'X-Forwarded-For': '10.3.0.1',
+      'Cookie': sessionCookie,
+      ...(csrfToken ? { 'X-CSRF-Token': csrfToken } : {})
     }
   });
 }
@@ -74,11 +81,11 @@ async function run() {
 
   // Test 3: Insert, verify, confirm
   await test('Insert registration → PATCH verify → confirm verified', async () => {
-    // Insert directly into DB
+    // Insert directly into DB with new schema
     const info = db.prepare(`
-      INSERT INTO registrations (name, department, year, team_selected, utr_number)
-      VALUES (?, ?, ?, ?, ?)
-    `).run('Admin Test User', 'ECE', '3rd', 'Design', '444455556666');
+      INSERT INTO registrations (name, email, phone, institution, utr_number, fee_tier)
+      VALUES (?, ?, ?, ?, ?, ?)
+    `).run('Admin Test User', 'admin@test.com', '9876543210', 'CUSAT', '444455556666', 'regular');
     cleanupIds.push(info.lastInsertRowid);
 
     // Verify via API
@@ -100,22 +107,54 @@ async function run() {
     const res = await adminFetch(`${BASE}/api/admin/export/csv`);
     const contentType = res.headers.get('content-type');
     assert(contentType && contentType.includes('text/csv'), `Expected text/csv, got ${contentType}`);
+    
+    // Verify CSV headers match new schema
+    const csv = await res.text();
+    const headerLine = csv.split('\n')[0];
+    assert(headerLine.includes('institution'), 'CSV headers should include institution');
+    assert(headerLine.includes('fee_tier'), 'CSV headers should include fee_tier');
+    assert(!headerLine.includes('department'), 'CSV headers should NOT include department');
+    assert(!headerLine.includes('team_selected'), 'CSV headers should NOT include team_selected');
   });
 
-  // Test 5: Save and get registration fee
-  await test('POST /api/admin/settings/fee → success', async () => {
-    const feeRes = await adminFetch(`${BASE}/api/admin/settings/fee`, {
+  // Test 5: Save and get pricing (new dual-fee system)
+  await test('POST /api/admin/settings/pricing → success', async () => {
+    const pricingRes = await adminFetch(`${BASE}/api/admin/settings/pricing`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ fee: 399 })
+      body: JSON.stringify({ early_bird_fee: 299, regular_fee: 499, early_bird_enabled: true })
     });
-    const feeData = await feeRes.json();
-    assert(feeData.success === true, `Expected success, got ${JSON.stringify(feeData)}`);
-    assert(feeData.fee === 399, `Expected fee=399, got ${feeData.fee}`);
+    const pricingData = await pricingRes.json();
+    assert(pricingData.success === true, `Expected success, got ${JSON.stringify(pricingData)}`);
+    assert(pricingData.early_bird_fee === 299, `Expected early_bird_fee=299, got ${pricingData.early_bird_fee}`);
+    assert(pricingData.regular_fee === 499, `Expected regular_fee=499, got ${pricingData.regular_fee}`);
+    assert(pricingData.early_bird_enabled === true, `Expected early_bird_enabled=true, got ${pricingData.early_bird_enabled}`);
+  });
+
+  // Test 6: Verify public fee endpoint reflects early bird when enabled
+  await test('GET /api/settings/fee → returns early_bird tier when enabled', async () => {
+    const res = await fetch(`${BASE}/api/settings/fee`);
+    const data = await res.json();
+    assert(data.tier === 'early_bird', `Expected tier=early_bird, got ${data.tier}`);
+    assert(data.fee === 299, `Expected fee=299, got ${data.fee}`);
+  });
+
+  // Test 7: Toggle early bird off and verify regular fee
+  await test('Toggle early bird off → public fee returns regular', async () => {
+    await adminFetch(`${BASE}/api/admin/settings/pricing`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ early_bird_enabled: false })
+    });
+
+    const res = await fetch(`${BASE}/api/settings/fee`);
+    const data = await res.json();
+    assert(data.tier === 'regular', `Expected tier=regular, got ${data.tier}`);
+    assert(data.fee === 499, `Expected fee=499, got ${data.fee}`);
   });
 
   // Cleanup
-  db.prepare("DELETE FROM settings WHERE key = 'registration_fee'").run();
+  db.prepare("DELETE FROM settings WHERE key IN ('early_bird_fee', 'regular_fee', 'early_bird_enabled')").run();
   for (const id of cleanupIds) {
     db.prepare('DELETE FROM registrations WHERE id = ?').run(id);
   }

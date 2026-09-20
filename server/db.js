@@ -19,16 +19,19 @@ db.exec(`
   CREATE TABLE IF NOT EXISTS registrations (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT NOT NULL,
-    department TEXT NOT NULL,
-    year TEXT NOT NULL,
-    team_selected TEXT NOT NULL,
-    email TEXT,
-    phone TEXT,
-    utr_number TEXT NOT NULL,
+    email TEXT NOT NULL,
+    phone TEXT NOT NULL,
+    institution TEXT NOT NULL,
+    utr_number TEXT NOT NULL UNIQUE,
+    fee_tier TEXT,
     screenshot_path TEXT,
     verified INTEGER DEFAULT 0,
+    flagged INTEGER DEFAULT 0,
+    payment_status TEXT DEFAULT NULL,
     submitted_at TEXT DEFAULT (datetime('now', 'localtime'))
   );
+
+  CREATE UNIQUE INDEX IF NOT EXISTS idx_registrations_utr ON registrations(utr_number);
 
   CREATE TABLE IF NOT EXISTS settings (
     key TEXT PRIMARY KEY,
@@ -51,43 +54,5 @@ db.exec(`
 
   CREATE UNIQUE INDEX IF NOT EXISTS settings_key_unique ON settings(key);
 `);
-
-// Migration: add flagged column if it doesn't exist
-const columns = db.pragma('table_info(registrations)');
-const hasFlagged = columns.some(col => col.name === 'flagged');
-if (!hasFlagged) {
-  db.exec('ALTER TABLE registrations ADD COLUMN flagged INTEGER DEFAULT 0');
-}
-
-// Migration: add payment_status column if it doesn't exist
-const columns2 = db.pragma('table_info(registrations)');
-const hasPaymentStatus = columns2.some(col => col.name === 'payment_status');
-if (!hasPaymentStatus) {
-  db.exec('ALTER TABLE registrations ADD COLUMN payment_status TEXT DEFAULT NULL');
-}
-
-// Clean up old passcode settings
-try {
-  db.prepare("DELETE FROM settings WHERE key LIKE 'team_passcode_%'").run();
-} catch (e) {}
-
-// Initialize unique team slugs if they do not exist
-const { VALID_TEAMS } = require('../shared/constants.json');
-function generateUniqueSlug(team) {
-  const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
-  let suffix = '';
-  for (let i = 0; i < 5; i++) {
-    suffix += chars.charAt(Math.floor(Math.random() * chars.length));
-  }
-  return `${team}_${suffix}`;
-}
-
-VALID_TEAMS.forEach(team => {
-  const key = `team_slug_${team}`;
-  const row = db.prepare("SELECT value FROM settings WHERE key = ?").get(key);
-  if (!row) {
-    db.prepare("INSERT INTO settings (key, value) VALUES (?, ?)").run(key, generateUniqueSlug(team));
-  }
-});
 
 module.exports = db;

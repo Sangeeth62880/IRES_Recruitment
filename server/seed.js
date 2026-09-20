@@ -1,13 +1,13 @@
 const db = require('./db');
 
-// Sample realistic dummy registration data
+// Sample realistic dummy registration data for SpaceUp Vol 8
 const dummy = [
-  { name: 'Adithya K', department: 'CSE', year: '3rd Year', utr: '123456789012', verified: 1, screenshot: null },
-  { name: 'Riya Sen', department: 'ECE', year: '2nd Year', utr: '987654321098', verified: 0, screenshot: null },
-  { name: 'Muhammed Shafi', department: 'ME', year: '1st Year', utr: '456789123456', verified: 0, screenshot: null },
-  { name: 'Anjali Nair', department: 'CSE', year: '4th Year', utr: '789123456789', verified: 1, screenshot: null },
-  { name: 'Devika P', department: 'S&H', year: '1st Year', utr: '111222333444', verified: 0, screenshot: null },
-  { name: 'Sanjay Kumar', department: 'EEE', year: '3rd Year', utr: '555666777888', verified: 1, screenshot: null }
+  { name: 'Adithya K', email: 'adithya@cusat.ac.in', phone: '9876543210', institution: 'CUSAT', utr: '123456789012', fee_tier: 'early_bird', verified: 1, screenshot: null },
+  { name: 'Riya Sen', email: 'riya.sen@iitb.ac.in', phone: '9876543211', institution: 'IIT Bombay', utr: '987654321098', fee_tier: 'regular', verified: 0, screenshot: null },
+  { name: 'Muhammed Shafi', email: 'shafi@nitc.ac.in', phone: '9876543212', institution: 'NIT Calicut', utr: '456789123456', fee_tier: 'early_bird', verified: 0, screenshot: null },
+  { name: 'Anjali Nair', email: 'anjali@cusat.ac.in', phone: '9876543213', institution: 'CUSAT', utr: '789123456789', fee_tier: 'regular', verified: 1, screenshot: null },
+  { name: 'Devika P', email: 'devika@cet.ac.in', phone: '9876543214', institution: 'CET Trivandrum', utr: '111222333444', fee_tier: 'early_bird', verified: 0, screenshot: null },
+  { name: 'Sanjay Kumar', email: 'sanjay@isro.gov.in', phone: '9876543215', institution: 'ISRO', utr: '555666777888', fee_tier: 'regular', verified: 1, screenshot: null }
 ];
 
 // Clean existing data and seed
@@ -16,13 +16,13 @@ try {
   console.log('Cleared existing registrations.');
 
   const insert = db.prepare(`
-    INSERT INTO registrations (name, department, year, team_selected, email, phone, utr_number, screenshot_path, verified)
-    VALUES (?, ?, ?, 'General', null, null, ?, ?, ?)
+    INSERT INTO registrations (name, email, phone, institution, utr_number, fee_tier, screenshot_path, verified)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
   `);
 
   db.transaction(() => {
     for (const row of dummy) {
-      insert.run(row.name, row.department, row.year, row.utr, row.screenshot, row.verified);
+      insert.run(row.name, row.email, row.phone, row.institution, row.utr, row.fee_tier, row.screenshot, row.verified);
     }
   })();
 

@@ -8,7 +8,7 @@ function App() {
   return (
     <BrowserRouter>
       <Routes>
-        <Route path="/register/:team" element={<Register />} />
+        <Route path="/register" element={<Register />} />
         <Route path="/admin" element={<Admin />} />
         <Route path="*" element={<NotFound />} />
       </Routes>

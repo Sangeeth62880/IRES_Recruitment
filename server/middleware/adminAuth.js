@@ -1,4 +1,32 @@
-const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'admin123';
+const crypto = require('crypto');
+const rateLimit = require('express-rate-limit');
+
+function getAdminPassword() {
+  if (process.env.NODE_ENV === 'production') {
+    if (!process.env.ADMIN_PASSWORD || !process.env.ADMIN_PASSWORD.trim()) {
+      throw new Error('ADMIN_PASSWORD environment variable is not configured in production mode');
+    }
+    return process.env.ADMIN_PASSWORD;
+  }
+  return process.env.ADMIN_PASSWORD || 'admin123';
+}
+
+const { logSecurityEvent } = require('../utils/securityLogger');
+
+const loginLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 5, // max 5 attempts per window
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: {
+    success: false,
+    error: 'Too many login attempts from this IP address. Please try again in 15 minutes.'
+  },
+  handler: (req, res, next, options) => {
+    logSecurityEvent('RATE_LIMIT_EXCEEDED', req, 'admin login');
+    res.status(429).json(options.message);
+  }
+});
 
 /**
  * Middleware to check if the user is authenticated as admin via session
@@ -10,18 +38,37 @@ function requireAdmin(req, res, next) {
   return res.status(401).json({ success: false, error: 'Unauthorized. Please log in.' });
 }
 
+const { generateCsrfToken } = require('./csrf');
+
 /**
- * Login handler — validates password and sets session
+ * Login handler — validates password with timing-safe comparison and regenerates session
  */
 function login(req, res) {
   const { password } = req.body;
   if (!password) {
+    logSecurityEvent('FAILED_ADMIN_LOGIN', req, 'missing password');
     return res.status(400).json({ success: false, error: 'Password is required' });
   }
-  if (password === ADMIN_PASSWORD) {
-    req.session.isAdmin = true;
-    return res.json({ success: true });
+
+  // Finding 8: Constant-time comparison using crypto.timingSafeEqual
+  const expected = Buffer.from(getAdminPassword());
+  const actual = Buffer.from(typeof password === 'string' ? password : '');
+  const match = expected.length === actual.length && crypto.timingSafeEqual(expected, actual);
+
+  if (match) {
+    loginLimiter.resetKey(req.ip);
+    // Finding 4: Regenerate session ID to prevent session fixation
+    return req.session.regenerate((err) => {
+      if (err) {
+        return res.status(500).json({ success: false, error: 'Failed to initialize session' });
+      }
+      req.session.isAdmin = true;
+      const csrfToken = generateCsrfToken(req, res);
+      return res.json({ success: true, csrfToken });
+    });
   }
+
+  logSecurityEvent('FAILED_ADMIN_LOGIN', req, 'invalid password');
   return res.status(401).json({ success: false, error: 'Incorrect password' });
 }
 
@@ -34,8 +81,9 @@ function logout(req, res) {
       return res.status(500).json({ success: false, error: 'Logout failed' });
     }
     res.clearCookie('connect.sid');
+    res.clearCookie('csrf_token');
     return res.json({ success: true });
   });
 }
 
-module.exports = { requireAdmin, login, logout };
+module.exports = { requireAdmin, login, logout, loginLimiter };

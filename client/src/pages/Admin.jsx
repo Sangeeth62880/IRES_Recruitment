@@ -1,20 +1,9 @@
 import { useState, useEffect, useCallback } from 'react'
-import constants from '../../../shared/constants.json'
-const { VALID_TEAMS, TEAM_LABELS } = constants
 
 const NAV_ITEMS = [
   { id: 'registrations', label: 'Registrations' },
-  { id: 'team-links', label: 'Team Links' },
-  { id: 'bank-settings', label: 'Bank Settings' }
+  { id: 'event-settings', label: 'Event Settings' }
 ]
-
-const getBaseUrl = () => {
-  let base = import.meta.env.DEV ? 'http://localhost:5173' : (import.meta.env.VITE_BASE_URL || window.location.origin);
-  if (base.endsWith('/')) {
-    base = base.slice(0, -1);
-  }
-  return base;
-};
 
 function getDisplayStatus(r) {
   return r.verified ? 'verified' : 'pending'
@@ -25,23 +14,42 @@ const STATUS_BADGE_MAP = {
   pending:  { className: 'badge--pending',  label: 'Pending' }
 }
 
+const TIER_BADGE_MAP = {
+  early_bird: { className: 'badge--early-bird', label: 'Early Bird' },
+  regular:    { className: 'badge--regular',    label: 'Regular' }
+}
+
+function getCsrfCookie() {
+  const match = document.cookie.match(/(?:^|;\s*)csrf_token=([^;]+)/)
+  return match ? decodeURIComponent(match[1]) : ''
+}
+
 function Admin() {
   const [loggedIn, setLoggedIn] = useState(false)
   const [password, setPassword] = useState('')
   const [loginError, setLoginError] = useState('')
   const [loggingIn, setLoggingIn] = useState(false)
   const [activeSection, setActiveSection] = useState('registrations')
-  const [copiedTeam, setCopiedTeam] = useState(null)
-  const [activeTeamFilter, setActiveTeamFilter] = useState('all')
-  const [slugs, setSlugs] = useState({})
+  const [csrfToken, setCsrfToken] = useState(() => getCsrfCookie())
 
   const [registrations, setRegistrations] = useState([])
   const [activeFilter, setActiveFilter] = useState('all')
   const [searchQuery, setSearchQuery] = useState('')
 
-  const [registrationFee, setRegistrationFee] = useState(349)
-  const [feeInput, setFeeInput] = useState('')
-  const [feeSaving, setFeeSaving] = useState(false)
+  // Pricing state
+  const [earlyBirdFee, setEarlyBirdFee] = useState('')
+  const [regularFee, setRegularFee] = useState('')
+  const [earlyBirdEnabled, setEarlyBirdEnabled] = useState(false)
+  const [pricingSaving, setPricingSaving] = useState(false)
+  const [pricingStatus, setPricingStatus] = useState({ type: '', message: '' })
+
+  // Event info state
+  const [eventDate, setEventDate] = useState('')
+  const [eventVenue, setEventVenue] = useState('')
+  const [eventSaving, setEventSaving] = useState(false)
+  const [eventStatus, setEventStatus] = useState({ type: '', message: '' })
+
+  // Bank state
   const [bankDetails, setBankDetails] = useState({
     bank_name: '',
     account_holder: '',
@@ -52,15 +60,44 @@ function Admin() {
   const [bankSaving, setBankSaving] = useState(false)
   const [bankStatus, setBankStatus] = useState({ type: '', message: '' })
 
+  // Payment Display & QR state
+  const [paymentMode, setPaymentMode] = useState('bank') // 'qr' | 'bank' | 'both'
+  const [activeQrFilename, setActiveQrFilename] = useState(null)
+  const [qrUploadFile, setQrUploadFile] = useState(null)
+  const [qrUploadPreview, setQrUploadPreview] = useState(null)
+  const [qrUploading, setQrUploading] = useState(false)
+  const [qrStatus, setQrStatus] = useState({ type: '', message: '' })
+
   const apiFetch = useCallback(async (url, options = {}) => {
-    const res = await fetch(url, { ...options, credentials: 'include' })
+    const method = options.method ? options.method.toUpperCase() : 'GET'
+    const isMutating = ['POST', 'PATCH', 'PUT', 'DELETE'].includes(method)
+    const token = csrfToken || getCsrfCookie()
+
+    const headers = {
+      ...options.headers,
+      ...(isMutating && token ? { 'X-CSRF-Token': token } : {})
+    }
+
+    const res = await fetch(url, { ...options, headers, credentials: 'include' })
     if (res.status === 401) {
       setLoggedIn(false)
       setLoginError('Session expired. Please log in again.')
       throw new Error('Unauthorized')
     }
     return res
-  }, [])
+  }, [csrfToken])
+
+  // Retrieve fresh CSRF token whenever session is established
+  useEffect(() => {
+    if (loggedIn) {
+      fetch('/api/admin/csrf-token', { credentials: 'include' })
+        .then(r => r.json())
+        .then(data => {
+          if (data.csrfToken) setCsrfToken(data.csrfToken)
+        })
+        .catch(() => {})
+    }
+  }, [loggedIn])
 
   // Auth
   async function handleLogin(e) {
@@ -75,30 +112,28 @@ function Admin() {
         body: JSON.stringify({ password })
       })
       const data = await res.json()
-      if (data.success) { setLoggedIn(true); setPassword('') }
-      else { setLoginError(data.error || 'Incorrect password') }
-    } catch { setLoginError('Network error') }
-    finally { setLoggingIn(false) }
+      if (data.success) {
+        setLoggedIn(true)
+        setPassword('')
+        if (data.csrfToken) setCsrfToken(data.csrfToken)
+      } else {
+        setLoginError(data.error || 'Incorrect password')
+      }
+    } catch {
+      setLoginError('Network error')
+    } finally {
+      setLoggingIn(false)
+    }
   }
 
   async function handleLogout() {
-    try { await fetch('/api/admin/logout', { method: 'POST', credentials: 'include' }) } catch {}
+    try { await apiFetch('/api/admin/logout', { method: 'POST' }) } catch {}
     setLoggedIn(false)
+    setCsrfToken('')
     setRegistrations([])
   }
 
-  function handleCopy(slug) {
-    const uniqueSlug = slugs[slug] || slug
-    const url = `${getBaseUrl()}/register/${uniqueSlug}`
-    navigator.clipboard.writeText(url)
-      .then(() => {
-        setCopiedTeam(slug)
-        setTimeout(() => setCopiedTeam(null), 2000)
-      })
-      .catch(() => {})
-  }
-
-  // Data
+  // Data loaders
   const loadRegistrations = useCallback(async () => {
     try {
       const res = await apiFetch('/api/admin/registrations')
@@ -106,19 +141,13 @@ function Admin() {
     } catch {}
   }, [apiFetch])
 
-  const loadSlugs = useCallback(async () => {
+  const loadPricing = useCallback(async () => {
     try {
-      const res = await apiFetch('/api/admin/teams/slugs')
-      setSlugs(await res.json())
-    } catch {}
-  }, [apiFetch])
-
-  const loadFee = useCallback(async () => {
-    try {
-      const res = await apiFetch('/api/admin/settings/fee')
+      const res = await apiFetch('/api/admin/settings/pricing')
       const data = await res.json()
-      setRegistrationFee(data.fee)
-      setFeeInput(String(data.fee))
+      setEarlyBirdFee(String(data.early_bird_fee || ''))
+      setRegularFee(String(data.regular_fee || ''))
+      setEarlyBirdEnabled(!!data.early_bird_enabled)
     } catch {}
   }, [apiFetch])
 
@@ -136,38 +165,38 @@ function Admin() {
     } catch {}
   }, [apiFetch])
 
-  async function handleRegenerateSlug(slug) {
-    if (!window.confirm(`Are you sure you want to regenerate the unique link for ${TEAM_LABELS[slug]}? The old link will stop working immediately!`)) {
-      return
-    }
+  const loadEventInfo = useCallback(async () => {
     try {
-      const res = await apiFetch('/api/admin/teams/slugs/regenerate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ team: slug })
-      })
+      const res = await apiFetch('/api/settings/event')
       const data = await res.json()
-      if (data.success) {
-        setSlugs(prev => ({ ...prev, [slug]: data.slug }))
-      }
+      setEventDate(data.event_date || '')
+      setEventVenue(data.event_venue || '')
     } catch {}
-  }
+  }, [apiFetch])
+
+  const loadPaymentSettings = useCallback(async () => {
+    try {
+      const res = await apiFetch('/api/admin/settings/payment')
+      const data = await res.json()
+      if (data.payment_display_mode) setPaymentMode(data.payment_display_mode)
+      setActiveQrFilename(data.qr_image_filename || null)
+    } catch {}
+  }, [apiFetch])
 
   useEffect(() => {
-    if (loggedIn) { loadRegistrations(); loadSlugs(); loadFee(); loadBankDetails() }
-  }, [loggedIn, loadRegistrations, loadSlugs, loadFee, loadBankDetails])
+    if (loggedIn) { loadRegistrations(); loadPricing(); loadBankDetails(); loadEventInfo(); loadPaymentSettings() }
+  }, [loggedIn, loadRegistrations, loadPricing, loadBankDetails, loadEventInfo, loadPaymentSettings])
 
   useEffect(() => {
-    if (loggedIn && activeSection === 'bank-settings') {
+    if (loggedIn && activeSection === 'event-settings') {
+      loadPricing()
       loadBankDetails()
-      loadFee()
+      loadEventInfo()
+      loadPaymentSettings()
     }
-    if (loggedIn && activeSection === 'team-links') {
-      loadSlugs()
-    }
-  }, [loggedIn, activeSection, loadSlugs, loadBankDetails, loadFee])
+  }, [loggedIn, activeSection, loadPricing, loadBankDetails, loadEventInfo, loadPaymentSettings])
 
-  // Actions
+  // Registration actions
   async function handleVerify(id) {
     try { await apiFetch(`/api/admin/registrations/${id}/verify`, { method: 'PATCH' }); loadRegistrations() } catch {}
   }
@@ -190,24 +219,78 @@ function Admin() {
     } catch {}
   }
 
-  // Fee Save
-  async function handleFeeSave() {
-    const val = parseInt(feeInput, 10)
-    if (isNaN(val) || val <= 0) return
-    setFeeSaving(true)
+  // Pricing save
+  async function handlePricingSave() {
+    setPricingStatus({ type: '', message: '' })
+    setPricingSaving(true)
     try {
-      const res = await apiFetch('/api/admin/settings/fee', {
+      const res = await apiFetch('/api/admin/settings/pricing', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ fee: val })
+        body: JSON.stringify({
+          early_bird_fee: parseInt(earlyBirdFee, 10) || 0,
+          regular_fee: parseInt(regularFee, 10) || 0,
+          early_bird_enabled: earlyBirdEnabled
+        })
       })
       const data = await res.json()
-      if (data.success) setRegistrationFee(data.fee)
-    } catch {}
-    finally { setFeeSaving(false) }
+      if (data.success) {
+        setEarlyBirdFee(String(data.early_bird_fee))
+        setRegularFee(String(data.regular_fee))
+        setEarlyBirdEnabled(data.early_bird_enabled)
+        setPricingStatus({ type: 'success', message: 'Pricing saved successfully!' })
+        setTimeout(() => setPricingStatus(prev => prev.type === 'success' ? { type: '', message: '' } : prev), 4000)
+      } else {
+        setPricingStatus({ type: 'error', message: data.error || 'Failed to save pricing' })
+      }
+    } catch {
+      setPricingStatus({ type: 'error', message: 'Network error. Please try again.' })
+    } finally {
+      setPricingSaving(false)
+    }
   }
 
-  // Bank Save
+  // Early bird toggle (auto-saves)
+  async function handleToggleEarlyBird() {
+    const newVal = !earlyBirdEnabled
+    setEarlyBirdEnabled(newVal)
+    try {
+      await apiFetch('/api/admin/settings/pricing', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ early_bird_enabled: newVal })
+      })
+    } catch {
+      setEarlyBirdEnabled(!newVal) // revert on error
+    }
+  }
+
+  // Event info save
+  async function handleEventSave(e) {
+    e.preventDefault()
+    setEventStatus({ type: '', message: '' })
+    setEventSaving(true)
+    try {
+      const res = await apiFetch('/api/admin/settings/event', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ event_date: eventDate.trim(), event_venue: eventVenue.trim() })
+      })
+      const data = await res.json()
+      if (res.ok && data.success) {
+        setEventStatus({ type: 'success', message: 'Event info saved!' })
+        setTimeout(() => setEventStatus(prev => prev.type === 'success' ? { type: '', message: '' } : prev), 4000)
+      } else {
+        setEventStatus({ type: 'error', message: data.error || 'Failed to save' })
+      }
+    } catch {
+      setEventStatus({ type: 'error', message: 'Network error.' })
+    } finally {
+      setEventSaving(false)
+    }
+  }
+
+  // Bank save
   async function handleBankSave(e) {
     e.preventDefault()
     setBankStatus({ type: '', message: '' })
@@ -266,6 +349,81 @@ function Admin() {
     }
   }
 
+  // Payment display mode change
+  async function handlePaymentModeChange(newMode) {
+    setPaymentMode(newMode)
+    setQrStatus({ type: '', message: '' })
+    try {
+      const res = await apiFetch('/api/admin/settings/payment-mode', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ payment_display_mode: newMode })
+      })
+      const data = await res.json()
+      if (res.ok && data.success) {
+        setQrStatus({ type: 'success', message: `Display mode set to ${newMode === 'both' ? 'Both (QR + Bank)' : newMode.toUpperCase() + ' only'}` })
+        setTimeout(() => setQrStatus(prev => prev.type === 'success' ? { type: '', message: '' } : prev), 3000)
+      } else {
+        setQrStatus({ type: 'error', message: data.error || 'Failed to update payment display mode' })
+      }
+    } catch {
+      setQrStatus({ type: 'error', message: 'Network error updating display mode' })
+    }
+  }
+
+  // QR Upload
+  async function handleQrUpload(e) {
+    e.preventDefault()
+    if (!qrUploadFile) return
+    setQrUploading(true)
+    setQrStatus({ type: '', message: '' })
+
+    const fd = new FormData()
+    fd.append('qr_image', qrUploadFile)
+
+    try {
+      const res = await apiFetch('/api/admin/settings/qr', {
+        method: 'POST',
+        body: fd
+      })
+      const data = await res.json()
+      if (res.ok && data.success) {
+        setActiveQrFilename(data.qr_image_filename)
+        setQrUploadFile(null)
+        setQrUploadPreview(null)
+        setQrStatus({ type: 'success', message: 'QR code updated successfully!' })
+        setTimeout(() => setQrStatus(prev => prev.type === 'success' ? { type: '', message: '' } : prev), 4000)
+      } else {
+        setQrStatus({ type: 'error', message: data.error || 'Failed to upload QR image' })
+      }
+    } catch {
+      setQrStatus({ type: 'error', message: 'Network error uploading QR code' })
+    } finally {
+      setQrUploading(false)
+    }
+  }
+
+  // QR Remove
+  async function handleQrRemove() {
+    if (!confirm('Are you sure you want to remove the active QR code?')) return
+    setQrStatus({ type: '', message: '' })
+    try {
+      const res = await apiFetch('/api/admin/settings/qr', {
+        method: 'DELETE'
+      })
+      const data = await res.json()
+      if (res.ok && data.success) {
+        setActiveQrFilename(null)
+        setQrStatus({ type: 'success', message: 'Active QR code removed.' })
+        setTimeout(() => setQrStatus(prev => prev.type === 'success' ? { type: '', message: '' } : prev), 3000)
+      } else {
+        setQrStatus({ type: 'error', message: data.error || 'Failed to remove QR code' })
+      }
+    } catch {
+      setQrStatus({ type: 'error', message: 'Network error' })
+    }
+  }
+
   // Filter registrations
   const filtered = registrations.filter(r => {
     const status = getDisplayStatus(r)
@@ -273,15 +431,10 @@ function Admin() {
     if (activeFilter === 'verified' && status !== 'verified') return false
     if (activeFilter === 'pending' && status !== 'pending') return false
 
-    if (activeTeamFilter !== 'all') {
-      const teamVal = r.team_selected || 'General';
-      if (teamVal !== activeTeamFilter) return false;
-    }
-
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase()
       return (r.name && r.name.toLowerCase().includes(q)) || 
-             (r.department && r.department.toLowerCase().includes(q)) || 
+             (r.institution && r.institution.toLowerCase().includes(q)) || 
              (r.utr_number && r.utr_number.includes(q))
     }
     return true
@@ -292,12 +445,9 @@ function Admin() {
     return (
       <div className="login-screen">
         <div className="login-card">
-          <div className="login-card__logos">
-            <img src="/seds_logo.png" alt="SEDS CUSAT Logo" className="login-card__logo-seds" />
-            <div className="login-card__logo-divider"></div>
-            <img src="/ires_logo.png" alt="IRES Logo" className="login-card__logo-ires" />
-          </div>
-          <h2>Admin Access</h2>
+          <div className="login-card__brand">SPACEUP VOL 8</div>
+          <div className="login-card__brand-sub">Admin Portal</div>
+          <h2>[ ACCESS ]</h2>
           {loginError && <div className="alert alert--error">{loginError}</div>}
           <form onSubmit={handleLogin}>
             <div className="form-group">
@@ -312,7 +462,7 @@ function Admin() {
               />
             </div>
             <button type="submit" className="btn btn--primary" disabled={loggingIn}>
-              {loggingIn ? <><span className="spinner" /> Entering...</> : 'Enter'}
+              {loggingIn ? <><span className="spinner" /> ENTERING...</> : '[ ENTER ]'}
             </button>
           </form>
         </div>
@@ -325,11 +475,8 @@ function Admin() {
     <div className="admin-layout">
       {/* Sidebar */}
       <aside className="sidebar">
-        <div className="sidebar__logos">
-          <img src="/seds_logo.png" alt="SEDS CUSAT Logo" className="sidebar__logo-seds" />
-          <div className="sidebar__logo-divider"></div>
-          <img src="/ires_logo.png" alt="IRES Logo" className="sidebar__logo-ires" />
-        </div>
+        <div className="sidebar__brand">SPACEUP VOL 8</div>
+        <div className="sidebar__brand-sub">Admin</div>
         <nav>
           <ul className="sidebar__nav">
             {NAV_ITEMS.map(item => (
@@ -346,8 +493,8 @@ function Admin() {
           </ul>
         </nav>
         <div className="sidebar__footer">
-          <button className="btn btn--outline" style={{ width: '100%', fontSize: 12 }} onClick={handleLogout}>
-            Logout
+          <button className="btn btn--outline" style={{ width: '100%', fontSize: 14 }} onClick={handleLogout}>
+            LOGOUT
           </button>
         </div>
       </aside>
@@ -356,7 +503,7 @@ function Admin() {
       <main className="admin-main">
         <div className="admin-header">
           <div>
-            <h1>Dashboard</h1>
+            <h1>SPACEUP VOL 8 ADMIN</h1>
             <p className="admin-header__stats">
               {registrations.length} registrations
             </p>
@@ -369,7 +516,7 @@ function Admin() {
             <div className="section-header">
               <h2>Registrations</h2>
               <button className="btn btn--primary btn--export" onClick={handleExportCSV}>
-                Export CSV
+                EXPORT CSV
               </button>
             </div>
 
@@ -378,7 +525,7 @@ function Admin() {
               <input
                 type="text"
                 className="filter-bar__search"
-                placeholder="Search by name, dept, UTR..."
+                placeholder="Search name, institution, UTR..."
                 value={searchQuery}
                 onChange={e => setSearchQuery(e.target.value)}
               />
@@ -393,17 +540,6 @@ function Admin() {
                   </button>
                 ))}
               </div>
-              <select
-                value={activeTeamFilter}
-                onChange={e => setActiveTeamFilter(e.target.value)}
-                style={{ width: 180, padding: '8px 12px', fontSize: 13, height: 38 }}
-              >
-                <option value="all">All Teams</option>
-                <option value="General">General (No Link)</option>
-                {VALID_TEAMS.map(t => (
-                  <option key={t} value={TEAM_LABELS[t]}>{TEAM_LABELS[t]}</option>
-                ))}
-              </select>
             </div>
 
             {/* Registrations Table */}
@@ -412,10 +548,10 @@ function Admin() {
                 <thead>
                   <tr>
                     <th>Name</th>
-                    <th>Dept</th>
-                    <th>Team</th>
-                    <th>Year</th>
+                    <th>Email</th>
+                    <th>Institution</th>
                     <th>UTR</th>
+                    <th>Tier</th>
                     <th>Status</th>
                     <th>Date</th>
                     <th>Actions</th>
@@ -432,21 +568,28 @@ function Admin() {
                     filtered.map(r => {
                       const displayStatus = getDisplayStatus(r)
                       const badgeInfo = STATUS_BADGE_MAP[displayStatus] || STATUS_BADGE_MAP.pending
+                      const tierInfo = TIER_BADGE_MAP[r.fee_tier] || TIER_BADGE_MAP.regular
 
                       return (
                         <tr key={r.id}>
                           <td style={{ fontWeight: 500 }}>{r.name}</td>
-                          <td>{r.department}</td>
-                          <td style={{ fontWeight: 500 }}>{r.team_selected || 'General'}</td>
-                          <td>{r.year}</td>
+                          <td style={{ fontSize: 12 }}>{r.email || '—'}</td>
+                          <td style={{ fontWeight: 500 }}>{r.institution}</td>
                           <td style={{ fontFamily: "'Courier New', monospace", fontSize: 12, letterSpacing: '0.02em' }}>{r.utr_number}</td>
+                          <td>
+                            {r.fee_tier && (
+                              <span className={`badge ${tierInfo.className}`}>
+                                {tierInfo.label}
+                              </span>
+                            )}
+                          </td>
                           <td>
                             <span className={`badge ${badgeInfo.className}`}>
                               {badgeInfo.label}
                             </span>
                           </td>
                           <td style={{ whiteSpace: 'nowrap', fontSize: 12, color: 'var(--text-muted)' }}>
-                            {r.submitted_at ? new Date(r.submitted_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: '2-digit' }) : '\u2014'}
+                            {r.submitted_at ? new Date(r.submitted_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: '2-digit' }) : '—'}
                           </td>
                           <td>
                             <div className="actions">
@@ -471,95 +614,264 @@ function Admin() {
           </div>
         )}
 
-        {/* ── Team Links ── */}
-        {activeSection === 'team-links' && (
+        {/* ── Event Settings ── */}
+        {activeSection === 'event-settings' && (
           <div className="section">
-            <div className="section-header">
-              <h2>Team Links</h2>
-            </div>
-            <div className="table-wrapper">
-              <table>
-                <thead>
-                  <tr>
-                    <th>Team</th>
-                    <th>Registration URL</th>
-                    <th style={{ width: 220 }}>Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {VALID_TEAMS.map(slug => {
-                    const label = TEAM_LABELS[slug]
-                    const uniqueSlug = slugs[slug] || slug
-                    const url = `${getBaseUrl()}/register/${uniqueSlug}`
-                    return (
-                      <tr key={slug}>
-                        <td style={{ fontWeight: 500 }}>{label}</td>
-                        <td style={{ fontFamily: 'monospace', fontSize: 13, color: 'var(--text-muted)' }}>
-                          {url}
-                        </td>
-                        <td>
-                          <div style={{ display: 'flex', gap: 8 }}>
-                            <button
-                              className="btn btn--action"
-                              style={{ minWidth: 80 }}
-                              onClick={() => handleCopy(slug)}
-                            >
-                              {copiedTeam === slug ? 'Copied!' : 'Copy Link'}
-                            </button>
-                            <button
-                              className="btn btn--action"
-                              style={{ border: '1px solid var(--error-light)', color: 'var(--error)' }}
-                              onClick={() => handleRegenerateSlug(slug)}
-                            >
-                              Regenerate Link
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    )
-                  })}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        )}
-
-        {/* ── Bank Settings ── */}
-        {activeSection === 'bank-settings' && (
-          <div className="section">
+            {/* Pricing Card */}
             <div className="admin-card">
-              <h3 className="admin-card__heading">Registration Fee</h3>
-              <div style={{ display: 'flex', gap: 12, alignItems: 'flex-end', flexWrap: 'wrap' }}>
-                <div style={{ flex: 1, minWidth: 140 }}>
-                  <label htmlFor="fee-input">Fee Amount (₹)</label>
+              <h3 className="admin-card__heading">Ticket Pricing</h3>
+              
+              {/* Early Bird Toggle */}
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px', flexWrap: 'wrap', gap: '12px' }}>
+                <label className="toggle-switch" style={{ marginBottom: 0 }}>
+                  <input
+                    type="checkbox"
+                    className="toggle-switch__input"
+                    checked={earlyBirdEnabled}
+                    onChange={handleToggleEarlyBird}
+                  />
+                  <span className="toggle-switch__slider"></span>
+                  <span className="toggle-switch__label">Early Bird Active</span>
+                </label>
+                <span className="live-indicator">
+                  <span className="live-indicator__dot"></span>
+                  LIVE: {earlyBirdEnabled ? `₹${earlyBirdFee || '0'} (EARLY BIRD)` : `₹${regularFee || '0'} (REGULAR)`}
+                </span>
+              </div>
+
+              {pricingStatus.message && (
+                <div className={`alert alert--${pricingStatus.type === 'error' ? 'error' : 'success'}`} style={{ marginBottom: 16 }}>
+                  {pricingStatus.message}
+                </div>
+              )}
+
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '16px', marginBottom: '16px' }}>
+                <div className="form-group" style={{ marginBottom: 0 }}>
+                  <label htmlFor="early-bird-fee">Early Bird Price (₹)</label>
                   <input
                     type="number"
-                    id="fee-input"
-                    value={feeInput}
-                    onChange={e => setFeeInput(e.target.value)}
-                    placeholder="349"
-                    min="1"
+                    id="early-bird-fee"
+                    value={earlyBirdFee}
+                    onChange={e => setEarlyBirdFee(e.target.value)}
+                    placeholder="299"
+                    min="0"
                     style={{ width: '100%' }}
                   />
-                  <p className="helper-text" style={{ marginTop: 4 }}>
-                    Current: ₹{registrationFee}
-                  </p>
                 </div>
+                <div className="form-group" style={{ marginBottom: 0 }}>
+                  <label htmlFor="regular-fee">Regular Price (₹)</label>
+                  <input
+                    type="number"
+                    id="regular-fee"
+                    value={regularFee}
+                    onChange={e => setRegularFee(e.target.value)}
+                    placeholder="499"
+                    min="0"
+                    style={{ width: '100%' }}
+                  />
+                </div>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
                 <button
                   className="btn btn--primary"
-                  style={{ width: 'auto', padding: '10px 24px', marginBottom: 28 }}
-                  onClick={handleFeeSave}
-                  disabled={feeSaving || !feeInput || parseInt(feeInput, 10) === registrationFee}
+                  style={{ width: 'auto', padding: '10px 24px' }}
+                  onClick={handlePricingSave}
+                  disabled={pricingSaving}
                 >
-                  {feeSaving ? <><span className="spinner" /> Saving...</> : 'Save Fee'}
+                  {pricingSaving ? <><span className="spinner" /> SAVING...</> : '[ SAVE PRICING ]'}
                 </button>
               </div>
             </div>
 
-            <div className="admin-card" style={{ marginTop: 24 }}>
+            {/* Event Info Card */}
+            <div className="admin-card">
+              <h3 className="admin-card__heading">Event Information</h3>
+              {eventStatus.message && (
+                <div className={`alert alert--${eventStatus.type === 'error' ? 'error' : 'success'}`} style={{ marginBottom: 16 }}>
+                  {eventStatus.message}
+                </div>
+              )}
+              <form onSubmit={handleEventSave}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px', marginBottom: '16px' }}>
+                  <div className="form-group" style={{ marginBottom: 0 }}>
+                    <label htmlFor="event-date">Event Date</label>
+                    <input
+                      type="text"
+                      id="event-date"
+                      value={eventDate}
+                      onChange={e => setEventDate(e.target.value)}
+                      placeholder="e.g. November 15-16, 2026"
+                    />
+                  </div>
+                  <div className="form-group" style={{ marginBottom: 0 }}>
+                    <label htmlFor="event-venue">Event Venue</label>
+                    <input
+                      type="text"
+                      id="event-venue"
+                      value={eventVenue}
+                      onChange={e => setEventVenue(e.target.value)}
+                      placeholder="e.g. Bengaluru, India"
+                    />
+                  </div>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                  <button
+                    type="submit"
+                    className="btn btn--primary"
+                    style={{ width: 'auto', padding: '10px 24px' }}
+                    disabled={eventSaving}
+                  >
+                    {eventSaving ? <><span className="spinner" /> SAVING...</> : '[ SAVE EVENT INFO ]'}
+                  </button>
+                </div>
+              </form>
+            </div>
+
+            {/* Payment Display & QR Code Card */}
+            <div className="admin-card">
+              <h3 className="admin-card__heading">Payment Display & UPI QR Code</h3>
+              <p className="helper-text" style={{ marginBottom: 16 }}>
+                Choose how payment information is presented to registrants on the public page, and upload or replace the active UPI QR code.
+              </p>
+
+              {qrStatus.message && (
+                <div className={`alert alert--${qrStatus.type === 'error' ? 'error' : 'success'}`} style={{ marginBottom: 16 }}>
+                  {qrStatus.message}
+                </div>
+              )}
+
+              {/* 3-Way Mode Toggle */}
+              <label style={{ display: 'block', marginBottom: 8, fontSize: 13, fontWeight: 600, color: 'var(--text-muted)' }}>
+                Display Mode on Registration Page
+              </label>
+              <div className="mode-selector">
+                <button
+                  type="button"
+                  className={`mode-btn ${paymentMode === 'bank' ? 'mode-btn--active' : ''}`}
+                  onClick={() => handlePaymentModeChange('bank')}
+                >
+                  Bank Details Only
+                </button>
+                <button
+                  type="button"
+                  className={`mode-btn ${paymentMode === 'qr' ? 'mode-btn--active' : ''}`}
+                  onClick={() => handlePaymentModeChange('qr')}
+                >
+                  QR Code Only
+                </button>
+                <button
+                  type="button"
+                  className={`mode-btn ${paymentMode === 'both' ? 'mode-btn--active' : ''}`}
+                  onClick={() => handlePaymentModeChange('both')}
+                >
+                  Both (QR + Bank)
+                </button>
+              </div>
+
+              {/* QR Management Panel */}
+              <div className="qr-admin-panel">
+                <div>
+                  <label style={{ display: 'block', marginBottom: 8, fontSize: 13, fontWeight: 600, color: 'var(--text-muted)' }}>
+                    Active QR Code
+                  </label>
+                  {activeQrFilename ? (
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
+                      <div className="qr-preview-box">
+                        <img
+                          src={`/api/payment/qr?t=${Date.now()}`}
+                          alt="Active QR"
+                          onError={e => { e.target.style.display = 'none' }}
+                        />
+                      </div>
+                      <button
+                        type="button"
+                        onClick={handleQrRemove}
+                        className="btn btn--action btn--delete"
+                        style={{ width: '100%', fontSize: 12, padding: '6px 12px' }}
+                      >
+                        Remove QR
+                      </button>
+                    </div>
+                  ) : (
+                    <div style={{
+                      width: 150,
+                      height: 150,
+                      border: '1px dashed var(--border)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      textAlign: 'center',
+                      color: 'var(--text-subtle)',
+                      fontSize: 12,
+                      padding: 12
+                    }}>
+                      No QR Code currently set
+                    </div>
+                  )}
+                </div>
+
+                <form onSubmit={handleQrUpload} className="qr-upload-area">
+                  <label style={{ display: 'block', fontSize: 13, fontWeight: 600, color: 'var(--text-muted)' }}>
+                    {activeQrFilename ? 'Replace Active QR Code' : 'Upload New QR Code'}
+                  </label>
+                  <p className="helper-text" style={{ marginTop: -6 }}>
+                    Upload a square PNG or JPG image of your UPI QR code (max 2MB).
+                  </p>
+
+                  <input
+                    type="file"
+                    id="admin-qr-file"
+                    accept="image/png, image/jpeg, image/jpg"
+                    onChange={e => {
+                      const f = e.target.files[0]
+                      if (f) {
+                        setQrUploadFile(f)
+                        setQrUploadPreview(URL.createObjectURL(f))
+                      } else {
+                        setQrUploadFile(null)
+                        setQrUploadPreview(null)
+                      }
+                    }}
+                    style={{
+                      background: 'var(--bg-input)',
+                      border: '1px solid var(--border)',
+                      padding: '8px 12px',
+                      color: 'var(--text)',
+                      fontFamily: 'var(--font-body)',
+                      fontSize: 13
+                    }}
+                  />
+
+                  {qrUploadPreview && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 4 }}>
+                      <div style={{ width: 50, height: 50, background: 'var(--qr-bg)', padding: 2, border: '1px solid var(--border)' }}>
+                        <img src={qrUploadPreview} alt="Upload preview" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+                      </div>
+                      <span style={{ fontSize: 12, color: 'var(--accent-cyan)' }}>
+                        Ready to upload: {qrUploadFile?.name}
+                      </span>
+                    </div>
+                  )}
+
+                  <div style={{ display: 'flex', gap: 12, marginTop: 8 }}>
+                    <button
+                      type="submit"
+                      className="btn btn--primary"
+                      style={{ width: 'auto', padding: '8px 20px' }}
+                      disabled={!qrUploadFile || qrUploading}
+                    >
+                      {qrUploading ? <><span className="spinner" /> UPLOADING...</> : (activeQrFilename ? '[ REPLACE QR CODE ]' : '[ UPLOAD QR CODE ]')}
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </div>
+
+            {/* Bank Details Card */}
+            <div className="admin-card">
               <h3 className="admin-card__heading">Bank Transfer Details</h3>
               <p className="helper-text" style={{ marginBottom: 16 }}>
-                Provide the organization's bank details. Leave these fields empty to hide/disable the Bank Transfer option on the public registration portal.
+                Provide the organization's bank details for the registration payment page. Leave empty to hide.
               </p>
               {bankStatus.message && (
                 <div className={`alert alert--${bankStatus.type === 'error' ? 'error' : 'success'}`} style={{ marginBottom: 16 }}>
@@ -580,7 +892,7 @@ function Admin() {
                     />
                   </div>
                   <div className="form-group" style={{ marginBottom: 0 }}>
-                    <label htmlFor="account-holder">Account Holder Name</label>
+                    <label htmlFor="account-holder">Account Holder</label>
                     <input
                       type="text"
                       id="account-holder"
@@ -635,7 +947,7 @@ function Admin() {
                     style={{ width: 'auto', padding: '10px 24px' }}
                     disabled={bankSaving}
                   >
-                    {bankSaving ? <><span className="spinner" /> Saving...</> : 'Save Bank Details'}
+                    {bankSaving ? <><span className="spinner" /> SAVING...</> : '[ SAVE BANK DETAILS ]'}
                   </button>
                 </div>
               </form>

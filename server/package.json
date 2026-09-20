@@ -11,7 +11,10 @@
     "test:phase3": "node tests/phase3.test.js",
     "test:phase4": "node tests/phase4.test.js",
     "test:phase7": "node tests/phase7.integration.test.js",
-    "test:bank": "node tests/bank_settings.test.js"
+    "test:bank": "node tests/bank_settings.test.js",
+    "test:security": "node tests/security.test.js",
+    "test:qr": "node tests/qr_payment.test.js",
+    "test:audit": "node tests/security_audit_fixes.test.js"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",

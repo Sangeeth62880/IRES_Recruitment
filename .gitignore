@@ -29,3 +29,7 @@ server/uploads/temp/*
 # Build directories
 client/dist/
 dist/
+
+# Artifacts
+hero-baseline.png
+
