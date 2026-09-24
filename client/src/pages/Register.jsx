@@ -409,7 +409,6 @@ function Register() {
       {/* Footer */}
       <footer className="page-footer" style={{ position: 'absolute', bottom: 0, left: 0, right: 0 }}>
         <p>© 2026 SpaceUp Volume 8. All rights reserved.</p>
-        <p style={{ marginTop: 4 }}>Questions? Reach out at <a href="mailto:support@spaceup26.org">support@spaceup26.org</a></p>
       </footer>
     </div>
   )

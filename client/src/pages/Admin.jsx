@@ -626,7 +626,7 @@ function Admin() {
             <div style={{ position: 'relative', width: 10, height: 10 }}>
               <span className="admin-topbar__ping" />
             </div>
-            <span className="admin-topbar__session">SESSION: SU26-STAGE-PROD</span>
+            <span className="admin-topbar__session">ADMIN CONSOLE</span>
           </div>
         </header>
 
@@ -688,14 +688,14 @@ function Admin() {
                 <table>
                   <thead>
                     <tr>
-                      <th>Name</th>
-                      <th>Email</th>
-                      <th>Institution</th>
-                      <th>UTR / REF</th>
-                      <th>Tier</th>
-                      <th>Status</th>
-                      <th>Date</th>
-                      <th style={{ textAlign: 'right' }}>Actions</th>
+                      <th className="th-name">Name</th>
+                      <th className="th-email">Email</th>
+                      <th className="th-institution">Institution</th>
+                      <th className="th-utr">UTR / REF</th>
+                      <th className="th-tier">Tier</th>
+                      <th className="th-status">Status</th>
+                      <th className="th-date">Date</th>
+                      <th className="th-actions">Actions</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -716,29 +716,29 @@ function Admin() {
                             <td className="td-name">
                               <div className="td-name-group">
                                 <span className={`td-status-dot ${displayStatus === 'verified' ? 'td-status-dot--green' : 'td-status-dot--yellow'}`} />
-                                <span>{r.name}</span>
+                                <span className="td-truncate" title={r.name}>{r.name}</span>
                               </div>
                             </td>
-                            <td className="td-mono" style={{ color: 'var(--text-muted)' }}>{r.email || '—'}</td>
-                            <td>{r.institution}</td>
-                            <td className="td-mono" style={{ color: 'var(--text-muted)', letterSpacing: '0.08em' }}>{r.utr_number}</td>
-                            <td>
+                            <td className="td-email td-mono" title={r.email || ''}>{r.email || '—'}</td>
+                            <td className="td-institution" title={r.institution}>{r.institution}</td>
+                            <td className="td-utr td-mono">{r.utr_number}</td>
+                            <td className="td-tier">
                               {r.fee_tier && (
                                 <span className={`badge ${tierInfo.className}`}>
                                   {tierInfo.label}
                                 </span>
                               )}
                             </td>
-                            <td>
+                            <td className="td-status">
                               <span className={`badge ${badgeInfo.className}`}>
                                 <span className={`badge__dot ${displayStatus === 'verified' ? 'badge__dot--green' : 'badge__dot--yellow'}`} />
                                 {badgeInfo.label}
                               </span>
                             </td>
-                            <td className="td-mono" style={{ whiteSpace: 'nowrap' }}>
+                            <td className="td-date td-mono">
                               {r.submitted_at ? new Date(r.submitted_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: '2-digit' }) : '—'}
                             </td>
-                            <td>
+                            <td className="td-actions-cell">
                               <div className="td-actions">
                                 {displayStatus === 'verified' ? (
                                   <button className="btn btn--action btn--unverify" onClick={() => handleUnverify(r.id)}>Unverify</button>
@@ -747,7 +747,7 @@ function Admin() {
                                 )}
                                 <button className="btn--danger-action" onClick={() => handleDelete(r.id)}>Delete</button>
                                 {r.screenshot_url && (
-                                  <a href={r.screenshot_url.startsWith('http') ? r.screenshot_url : `${API_URL}${r.screenshot_url}`} target="_blank" rel="noopener noreferrer" className="btn btn--action btn--view">View Slip</a>
+                                  <a href={r.screenshot_url.startsWith('http') ? r.screenshot_url : `${API_URL}${r.screenshot_url}`} target="_blank" rel="noopener noreferrer" className="btn btn--action btn--view">Slip</a>
                                 )}
                               </div>
                             </td>

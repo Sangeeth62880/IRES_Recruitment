@@ -1060,7 +1060,7 @@ textarea {
 
 /* ── Sidebar ── */
 .sidebar {
-  width: 288px;
+  width: 240px;
   flex-shrink: 0;
   background: var(--bg-sidebar);
   backdrop-filter: blur(20px);
@@ -1295,7 +1295,7 @@ textarea {
 
 /* Content area */
 .admin-content {
-  padding: 32px;
+  padding: 20px 24px;
   max-width: 1400px;
   width: 100%;
   margin: 0 auto;
@@ -1437,9 +1437,10 @@ textarea {
   background: rgba(11, 15, 34, 0.9);
   border: 1px solid var(--border-sidebar);
   border-radius: 12px;
-  overflow: hidden;
+  overflow-x: auto;
   box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
   backdrop-filter: blur(4px);
+  position: relative;
 }
 
 .table-wrapper table {
@@ -1454,13 +1455,18 @@ textarea {
 }
 
 .table-wrapper thead th {
-  padding: 14px 16px;
+  padding: 12px 10px;
   font-family: var(--font-mono);
   font-size: 10px;
   font-weight: 600;
-  letter-spacing: 0.12em;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.table-wrapper thead th:first-child {
+  padding-left: 16px;
 }
 
 .table-wrapper tbody tr {
@@ -1477,22 +1483,82 @@ textarea {
 }
 
 .table-wrapper tbody td {
-  padding: 16px;
+  padding: 12px 10px;
   font-size: 12px;
   color: var(--text-muted);
 }
 
+.table-wrapper tbody td:first-child {
+  padding-left: 16px;
+}
+
 .table-wrapper .td-name {
   font-weight: 600;
-  font-size: 13px;
+  font-size: 12px;
   color: var(--text);
-  white-space: nowrap;
+  max-width: 150px;
 }
 
 .table-wrapper .td-name-group {
   display: flex;
   align-items: center;
   gap: 8px;
+}
+
+.table-wrapper .td-truncate {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  display: inline-block;
+  max-width: 130px;
+  vertical-align: middle;
+}
+
+.table-wrapper .td-email {
+  max-width: 160px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11px;
+}
+
+.table-wrapper .td-institution {
+  max-width: 130px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11px;
+}
+
+.table-wrapper .td-utr {
+  font-size: 11px;
+  letter-spacing: 0.05em;
+  white-space: nowrap;
+}
+
+.table-wrapper .td-date {
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+/* Sticky Action Column — guarantees zero horizontal scroll to access actions */
+.table-wrapper th.th-actions,
+.table-wrapper td.td-actions-cell {
+  position: sticky;
+  right: 0;
+  text-align: right;
+  z-index: 3;
+  background: #0B0F22;
+  padding-right: 16px;
+  box-shadow: -6px 0 14px rgba(0, 0, 0, 0.55);
+}
+
+.table-wrapper thead th.th-actions {
+  background: #090D1E;
+}
+
+.table-wrapper tbody tr:hover td.td-actions-cell {
+  background: #101733;
 }
 
 .td-status-dot {
@@ -1514,7 +1580,16 @@ textarea {
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  gap: 6px;
+  gap: 4px;
+  flex-wrap: nowrap;
+  white-space: nowrap;
+}
+
+.td-actions .btn--action,
+.td-actions .btn--danger-action {
+  padding: 3px 8px;
+  font-size: 10px;
+  letter-spacing: 0.02em;
 }
 
 /* Table footer */
