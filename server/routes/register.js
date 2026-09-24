@@ -6,6 +6,7 @@ const crypto = require('crypto');
 const supabase = require('../supabaseClient');
 const { isValidImageBuffer, getImageMimeTypeFromBuffer, ALLOWED_IMAGE_EXTENSIONS } = require('../utils/fileValidation');
 const { logSecurityEvent } = require('../utils/securityLogger');
+const { isBankSettingsLocked } = require('../middleware/adminAuth');
 
 const router = express.Router();
 
@@ -238,6 +239,7 @@ router.get('/api/settings/bank', async (req, res) => {
     if (rows) {
       rows.forEach(row => { bankDetails[row.key] = row.value || ''; });
     }
+    bankDetails.is_locked = isBankSettingsLocked();
 
     return res.json(bankDetails);
   } catch (err) {

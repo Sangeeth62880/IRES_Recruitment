@@ -111,7 +111,20 @@ app.post('/api/admin/login', loginLimiter, login);
 // Protected admin routes
 app.use('/api/admin', adminRoutes);
 
-// Catch-all 404 handler for unmatched routes (pure API service)
+// Serve static client build if present (enables single-service fullstack deployment on Render)
+const fs = require('fs');
+const clientDist = path.join(__dirname, '..', 'client', 'dist');
+if (fs.existsSync(clientDist)) {
+  app.use(express.static(clientDist));
+  app.get('*', (req, res, next) => {
+    if (req.path.startsWith('/api')) {
+      return next();
+    }
+    res.sendFile(path.join(clientDist, 'index.html'));
+  });
+}
+
+// Catch-all 404 handler for unmatched routes
 app.use((req, res) => {
   res.status(404).json({ error: 'Not found' });
 });

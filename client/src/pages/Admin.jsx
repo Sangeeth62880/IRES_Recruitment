@@ -1,9 +1,10 @@
 import { useState, useEffect, useCallback } from 'react'
 import { API_URL } from '../config'
+import SU26Logo from '../assets/SU26logo.png'
 
 const NAV_ITEMS = [
-  { id: 'registrations', label: 'Registrations' },
-  { id: 'event-settings', label: 'Event Settings' }
+  { id: 'registrations', label: 'Registrations', icon: 'users' },
+  { id: 'event-settings', label: 'Event Settings', icon: 'settings' }
 ]
 
 function getDisplayStatus(r) {
@@ -23,6 +24,53 @@ const TIER_BADGE_MAP = {
 function getCsrfCookie() {
   const match = document.cookie.match(/(?:^|;\s*)csrf_token=([^;]+)/)
   return match ? decodeURIComponent(match[1]) : ''
+}
+
+/* SVG Icon Components */
+function UsersIcon() {
+  return (
+    <svg className="sidebar__nav-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" />
+    </svg>
+  )
+}
+
+function SettingsIcon() {
+  return (
+    <svg className="sidebar__nav-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" />
+      <path d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" />
+    </svg>
+  )
+}
+
+function SearchIcon() {
+  return (
+    <svg className="filter-bar__search-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" />
+    </svg>
+  )
+}
+
+function ExportIcon() {
+  return (
+    <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" />
+    </svg>
+  )
+}
+
+function LogoutIcon() {
+  return (
+    <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" />
+    </svg>
+  )
+}
+
+const NAV_ICONS = {
+  users: UsersIcon,
+  settings: SettingsIcon
 }
 
 function Admin() {
@@ -56,8 +104,10 @@ function Admin() {
     account_holder: '',
     account_number: '',
     ifsc_code: '',
-    branch_name: ''
+    branch_name: '',
+    is_locked: false
   })
+  const [bankConfirmPassword, setBankConfirmPassword] = useState('')
   const [bankSaving, setBankSaving] = useState(false)
   const [bankStatus, setBankStatus] = useState({ type: '', message: '' })
 
@@ -68,6 +118,7 @@ function Admin() {
   const [qrUploadPreview, setQrUploadPreview] = useState(null)
   const [qrUploading, setQrUploading] = useState(false)
   const [qrStatus, setQrStatus] = useState({ type: '', message: '' })
+  const [qrTimestamp, setQrTimestamp] = useState(() => Date.now())
 
   const apiFetch = useCallback(async (url, options = {}) => {
     const method = options.method ? options.method.toUpperCase() : 'GET'
@@ -129,7 +180,7 @@ function Admin() {
   }
 
   async function handleLogout() {
-    try { await apiFetch('/api/admin/logout', { method: 'POST' }) } catch {}
+    try { await apiFetch('/api/admin/logout', { method: 'POST' }) } catch { /* ignore */ }
     setLoggedIn(false)
     setCsrfToken('')
     setRegistrations([])
@@ -140,7 +191,7 @@ function Admin() {
     try {
       const res = await apiFetch('/api/admin/registrations')
       setRegistrations(await res.json())
-    } catch {}
+    } catch { /* ignore */ }
   }, [apiFetch])
 
   const loadPricing = useCallback(async () => {
@@ -150,7 +201,7 @@ function Admin() {
       setEarlyBirdFee(String(data.early_bird_fee || ''))
       setRegularFee(String(data.regular_fee || ''))
       setEarlyBirdEnabled(!!data.early_bird_enabled)
-    } catch {}
+    } catch { /* ignore */ }
   }, [apiFetch])
 
   const loadBankDetails = useCallback(async () => {
@@ -162,9 +213,10 @@ function Admin() {
         account_holder: data.account_holder || '',
         account_number: data.account_number || '',
         ifsc_code: data.ifsc_code || '',
-        branch_name: data.branch_name || ''
+        branch_name: data.branch_name || '',
+        is_locked: !!data.is_locked
       })
-    } catch {}
+    } catch { /* ignore */ }
   }, [apiFetch])
 
   const loadEventInfo = useCallback(async () => {
@@ -173,7 +225,7 @@ function Admin() {
       const data = await res.json()
       setEventDate(data.event_date || '')
       setEventVenue(data.event_venue || '')
-    } catch {}
+    } catch { /* ignore */ }
   }, [apiFetch])
 
   const loadPaymentSettings = useCallback(async () => {
@@ -182,32 +234,50 @@ function Admin() {
       const data = await res.json()
       if (data.payment_display_mode) setPaymentMode(data.payment_display_mode)
       setActiveQrFilename(data.qr_image_filename || null)
-    } catch {}
+    } catch { /* ignore */ }
   }, [apiFetch])
 
   useEffect(() => {
-    if (loggedIn) { loadRegistrations(); loadPricing(); loadBankDetails(); loadEventInfo(); loadPaymentSettings() }
+    if (!loggedIn) return
+    let ignore = false
+    const init = async () => {
+      if (!ignore) {
+        await loadRegistrations()
+        await loadPricing()
+        await loadBankDetails()
+        await loadEventInfo()
+        await loadPaymentSettings()
+      }
+    }
+    init()
+    return () => { ignore = true }
   }, [loggedIn, loadRegistrations, loadPricing, loadBankDetails, loadEventInfo, loadPaymentSettings])
 
   useEffect(() => {
-    if (loggedIn && activeSection === 'event-settings') {
-      loadPricing()
-      loadBankDetails()
-      loadEventInfo()
-      loadPaymentSettings()
+    if (!loggedIn || activeSection !== 'event-settings') return
+    let ignore = false
+    const refreshSettings = async () => {
+      if (!ignore) {
+        await loadPricing()
+        await loadBankDetails()
+        await loadEventInfo()
+        await loadPaymentSettings()
+      }
     }
+    refreshSettings()
+    return () => { ignore = true }
   }, [loggedIn, activeSection, loadPricing, loadBankDetails, loadEventInfo, loadPaymentSettings])
 
   // Registration actions
   async function handleVerify(id) {
-    try { await apiFetch(`/api/admin/registrations/${id}/verify`, { method: 'PATCH' }); loadRegistrations() } catch {}
+    try { await apiFetch(`/api/admin/registrations/${id}/verify`, { method: 'PATCH' }); await loadRegistrations() } catch { /* ignore */ }
   }
   async function handleUnverify(id) {
-    try { await apiFetch(`/api/admin/registrations/${id}/unverify`, { method: 'PATCH' }); loadRegistrations() } catch {}
+    try { await apiFetch(`/api/admin/registrations/${id}/unverify`, { method: 'PATCH' }); await loadRegistrations() } catch { /* ignore */ }
   }
   async function handleDelete(id) {
     if (!confirm('Delete this registration?')) return
-    try { await apiFetch(`/api/admin/registrations/${id}`, { method: 'DELETE' }); loadRegistrations() } catch {}
+    try { await apiFetch(`/api/admin/registrations/${id}`, { method: 'DELETE' }); await loadRegistrations() } catch { /* ignore */ }
   }
   async function handleExportCSV() {
     try {
@@ -218,7 +288,7 @@ function Admin() {
       a.href = url; a.download = 'registrations.csv'
       document.body.appendChild(a); a.click()
       document.body.removeChild(a); URL.revokeObjectURL(url)
-    } catch {}
+    } catch { /* ignore */ }
   }
 
   // Pricing save
@@ -324,6 +394,16 @@ function Admin() {
       return
     }
 
+    if (bankDetails.is_locked) {
+      setBankStatus({ type: 'error', message: 'Bank settings are locked by server configuration and cannot be modified.' })
+      return
+    }
+
+    if (!bankConfirmPassword.trim()) {
+      setBankStatus({ type: 'error', message: 'Admin password confirmation is required to authorize changes to bank details.' })
+      return
+    }
+
     setBankSaving(true)
     try {
       const res = await apiFetch('/api/admin/settings/bank', {
@@ -334,11 +414,13 @@ function Admin() {
           account_holder: holder,
           account_number: acNum,
           ifsc_code: ifsc,
-          branch_name: branch
+          branch_name: branch,
+          confirm_password: bankConfirmPassword
         })
       })
       const data = await res.json()
       if (res.ok && data.success) {
+        setBankConfirmPassword('')
         setBankStatus({ type: 'success', message: 'Bank details saved successfully!' })
         setTimeout(() => setBankStatus(prev => prev.type === 'success' ? { type: '', message: '' } : prev), 4000)
       } else {
@@ -391,6 +473,7 @@ function Admin() {
       const data = await res.json()
       if (res.ok && data.success) {
         setActiveQrFilename(data.qr_image_filename)
+        setQrTimestamp(Date.now())
         setQrUploadFile(null)
         setQrUploadPreview(null)
         setQrStatus({ type: 'success', message: 'QR code updated successfully!' })
@@ -416,6 +499,7 @@ function Admin() {
       const data = await res.json()
       if (res.ok && data.success) {
         setActiveQrFilename(null)
+        setQrTimestamp(Date.now())
         setQrStatus({ type: 'success', message: 'Active QR code removed.' })
         setTimeout(() => setQrStatus(prev => prev.type === 'success' ? { type: '', message: '' } : prev), 3000)
       } else {
@@ -437,10 +521,14 @@ function Admin() {
       const q = searchQuery.toLowerCase()
       return (r.name && r.name.toLowerCase().includes(q)) || 
              (r.institution && r.institution.toLowerCase().includes(q)) || 
-             (r.utr_number && r.utr_number.includes(q))
+             (r.utr_number && r.utr_number.includes(q)) ||
+             (r.email && r.email.toLowerCase().includes(q))
     }
     return true
   })
+
+  const verifiedCount = registrations.filter(r => r.verified).length
+  const pendingCount = registrations.filter(r => !r.verified).length
 
   // ── Login Screen ──
   if (!loggedIn) {
@@ -448,7 +536,7 @@ function Admin() {
       <div className="login-screen">
         <div className="login-card">
           <div className="login-card__brand">SPACEUP VOL 8</div>
-          <div className="login-card__brand-sub">Admin Portal</div>
+          <div className="login-card__brand-sub">Admin Terminal</div>
           <h2>[ ACCESS ]</h2>
           {loginError && <div className="alert alert--error">{loginError}</div>}
           <form onSubmit={handleLogin}>
@@ -477,485 +565,601 @@ function Admin() {
     <div className="admin-layout">
       {/* Sidebar */}
       <aside className="sidebar">
-        <div className="sidebar__brand">SPACEUP VOL 8</div>
-        <div className="sidebar__brand-sub">Admin</div>
-        <nav>
-          <ul className="sidebar__nav">
-            {NAV_ITEMS.map(item => (
-              <li key={item.id}>
-                <a
-                  href={`#${item.id}`}
-                  className={`sidebar__nav-item ${activeSection === item.id ? 'sidebar__nav-item--active' : ''}`}
-                  onClick={e => { e.preventDefault(); setActiveSection(item.id) }}
-                >
-                  {item.label}
-                </a>
-              </li>
-            ))}
-          </ul>
-        </nav>
+        <div>
+          {/* Brand Header */}
+          <div className="sidebar__brand-container">
+            <div className="sidebar__logo-wrapper">
+              <div className="sidebar__logo-glow" />
+              <img src={SU26Logo} alt="SpaceUp 26" className="sidebar__logo" />
+            </div>
+            <div>
+              <div className="sidebar__brand-text">
+                SpaceUp Vol 8
+                <span className="sidebar__brand-dot" />
+              </div>
+              <div className="sidebar__brand-sub">Admin Terminal</div>
+            </div>
+          </div>
+
+          {/* Navigation */}
+          <div className="sidebar__nav-section">
+            <p className="sidebar__nav-label">Management</p>
+            <nav>
+              <ul className="sidebar__nav">
+                {NAV_ITEMS.map(item => {
+                  const IconComponent = NAV_ICONS[item.icon]
+                  return (
+                    <li key={item.id}>
+                      <a
+                        href={`#${item.id}`}
+                        className={`sidebar__nav-item ${activeSection === item.id ? 'sidebar__nav-item--active' : ''}`}
+                        onClick={e => { e.preventDefault(); setActiveSection(item.id) }}
+                      >
+                        {IconComponent && <IconComponent />}
+                        <span>{item.label}</span>
+                        {item.id === 'registrations' && (
+                          <span className="sidebar__nav-count">{registrations.length}</span>
+                        )}
+                      </a>
+                    </li>
+                  )
+                })}
+              </ul>
+            </nav>
+          </div>
+        </div>
+
+        {/* Sidebar Footer */}
         <div className="sidebar__footer">
-          <button className="btn btn--outline" style={{ width: '100%', fontSize: 11 }} onClick={handleLogout}>
-            LOGOUT
+          <button className="btn btn--outline" style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }} onClick={handleLogout}>
+            <LogoutIcon />
+            [ LOGOUT ]
           </button>
         </div>
       </aside>
 
       {/* Main */}
       <main className="admin-main">
-        <div className="admin-header">
-          <div>
-            <h1>SPACEUP VOL 8 ADMIN</h1>
-            <p className="admin-header__stats">
-              {registrations.length} registrations
-            </p>
+        {/* Top Bar */}
+        <header className="admin-topbar">
+          <div className="admin-topbar__status">
+            <div style={{ position: 'relative', width: 10, height: 10 }}>
+              <span className="admin-topbar__ping" />
+            </div>
+            <span className="admin-topbar__session">SESSION: SU26-STAGE-PROD</span>
           </div>
-        </div>
+        </header>
 
-        {/* ── Registrations ── */}
-        {activeSection === 'registrations' && (
-          <div className="section">
-            <div className="section-header">
-              <h2>Registrations</h2>
-              <button className="btn btn--primary btn--export" onClick={handleExportCSV}>
-                EXPORT CSV
-              </button>
-            </div>
+        <div className="admin-content">
 
-            {/* Filter Bar */}
-            <div className="filter-bar">
-              <input
-                type="text"
-                className="filter-bar__search"
-                placeholder="Search name, institution, UTR..."
-                value={searchQuery}
-                onChange={e => setSearchQuery(e.target.value)}
-              />
-              <div className="filter-toggle">
-                {['all', 'verified', 'pending'].map(v => (
-                  <button
-                    key={v}
-                    className={`filter-toggle__btn ${activeFilter === v ? 'filter-toggle__btn--active' : ''}`}
-                    onClick={() => setActiveFilter(v)}
-                  >
-                    {v.charAt(0).toUpperCase() + v.slice(1)}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Registrations Table */}
-            <div className="table-wrapper">
-              <table>
-                <thead>
-                  <tr>
-                    <th>Name</th>
-                    <th>Email</th>
-                    <th>Institution</th>
-                    <th>UTR</th>
-                    <th>Tier</th>
-                    <th>Status</th>
-                    <th>Date</th>
-                    <th>Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filtered.length === 0 ? (
-                    <tr>
-                      <td colSpan={8} style={{ textAlign: 'center', color: 'var(--text-subtle)', padding: 40 }}>
-                        No registrations found
-                      </td>
-                    </tr>
-                  ) : (
-                    filtered.map(r => {
-                      const displayStatus = getDisplayStatus(r)
-                      const badgeInfo = STATUS_BADGE_MAP[displayStatus] || STATUS_BADGE_MAP.pending
-                      const tierInfo = TIER_BADGE_MAP[r.fee_tier] || TIER_BADGE_MAP.regular
-
-                      return (
-                        <tr key={r.id}>
-                          <td style={{ fontWeight: 500 }}>{r.name}</td>
-                          <td style={{ fontSize: 12 }}>{r.email || '—'}</td>
-                          <td style={{ fontWeight: 500 }}>{r.institution}</td>
-                          <td style={{ fontFamily: "var(--font-mono)", fontSize: 13, letterSpacing: '0.04em' }}>{r.utr_number}</td>
-                          <td>
-                            {r.fee_tier && (
-                              <span className={`badge ${tierInfo.className}`}>
-                                {tierInfo.label}
-                              </span>
-                            )}
-                          </td>
-                          <td>
-                            <span className={`badge ${badgeInfo.className}`}>
-                              {badgeInfo.label}
-                            </span>
-                          </td>
-                          <td style={{ whiteSpace: 'nowrap', fontSize: 12, color: 'var(--text-muted)' }}>
-                            {r.submitted_at ? new Date(r.submitted_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: '2-digit' }) : '—'}
-                          </td>
-                          <td>
-                            <div className="actions">
-                              {displayStatus === 'verified' ? (
-                                <button className="btn btn--action" onClick={() => handleUnverify(r.id)}>Unverify</button>
-                              ) : (
-                                <button className="btn btn--action" onClick={() => handleVerify(r.id)}>Verify</button>
-                              )}
-                              <button className="btn btn--danger-action" onClick={() => handleDelete(r.id)}>Delete</button>
-                              {r.screenshot_url && (
-                                <a href={r.screenshot_url.startsWith('http') ? r.screenshot_url : `${API_URL}${r.screenshot_url}`} target="_blank" rel="noopener noreferrer" className="btn btn--action">View</a>
-                              )}
-                            </div>
-                          </td>
-                        </tr>
-                      )
-                    })
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        )}
-
-        {/* ── Event Settings ── */}
-        {activeSection === 'event-settings' && (
-          <div className="section">
-            {/* Pricing Card */}
-            <div className="admin-card">
-              <h3 className="admin-card__heading">Ticket Pricing</h3>
-              
-              {/* Early Bird Toggle */}
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px', flexWrap: 'wrap', gap: '12px' }}>
-                <label className="toggle-switch" style={{ marginBottom: 0 }}>
-                  <input
-                    type="checkbox"
-                    className="toggle-switch__input"
-                    checked={earlyBirdEnabled}
-                    onChange={handleToggleEarlyBird}
-                  />
-                  <span className="toggle-switch__slider"></span>
-                  <span className="toggle-switch__label">Early Bird Active</span>
-                </label>
-                <span className="live-indicator">
-                  <span className="live-indicator__dot"></span>
-                  LIVE: {earlyBirdEnabled ? `₹${earlyBirdFee || '0'} (EARLY BIRD)` : `₹${regularFee || '0'} (REGULAR)`}
-                </span>
-              </div>
-
-              {pricingStatus.message && (
-                <div className={`alert alert--${pricingStatus.type === 'error' ? 'error' : 'success'}`} style={{ marginBottom: 16 }}>
-                  {pricingStatus.message}
-                </div>
-              )}
-
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '16px', marginBottom: '16px' }}>
-                <div className="form-group" style={{ marginBottom: 0 }}>
-                  <label htmlFor="early-bird-fee">Early Bird Price (₹)</label>
-                  <input
-                    type="number"
-                    id="early-bird-fee"
-                    value={earlyBirdFee}
-                    onChange={e => setEarlyBirdFee(e.target.value)}
-                    placeholder="299"
-                    min="0"
-                    style={{ width: '100%' }}
-                  />
-                </div>
-                <div className="form-group" style={{ marginBottom: 0 }}>
-                  <label htmlFor="regular-fee">Regular Price (₹)</label>
-                  <input
-                    type="number"
-                    id="regular-fee"
-                    value={regularFee}
-                    onChange={e => setRegularFee(e.target.value)}
-                    placeholder="499"
-                    min="0"
-                    style={{ width: '100%' }}
-                  />
-                </div>
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-                <button
-                  className="btn btn--primary"
-                  style={{ width: 'auto', padding: '10px 24px' }}
-                  onClick={handlePricingSave}
-                  disabled={pricingSaving}
-                >
-                  {pricingSaving ? <><span className="spinner" /> SAVING...</> : '[ SAVE PRICING ]'}
-                </button>
-              </div>
-            </div>
-
-            {/* Event Info Card */}
-            <div className="admin-card">
-              <h3 className="admin-card__heading">Event Information</h3>
-              {eventStatus.message && (
-                <div className={`alert alert--${eventStatus.type === 'error' ? 'error' : 'success'}`} style={{ marginBottom: 16 }}>
-                  {eventStatus.message}
-                </div>
-              )}
-              <form onSubmit={handleEventSave}>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px', marginBottom: '16px' }}>
-                  <div className="form-group" style={{ marginBottom: 0 }}>
-                    <label htmlFor="event-date">Event Date</label>
-                    <input
-                      type="text"
-                      id="event-date"
-                      value={eventDate}
-                      onChange={e => setEventDate(e.target.value)}
-                      placeholder="e.g. November 15-16, 2026"
-                    />
-                  </div>
-                  <div className="form-group" style={{ marginBottom: 0 }}>
-                    <label htmlFor="event-venue">Event Venue</label>
-                    <input
-                      type="text"
-                      id="event-venue"
-                      value={eventVenue}
-                      onChange={e => setEventVenue(e.target.value)}
-                      placeholder="e.g. Bengaluru, India"
-                    />
-                  </div>
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-                  <button
-                    type="submit"
-                    className="btn btn--primary"
-                    style={{ width: 'auto', padding: '10px 24px' }}
-                    disabled={eventSaving}
-                  >
-                    {eventSaving ? <><span className="spinner" /> SAVING...</> : '[ SAVE EVENT INFO ]'}
-                  </button>
-                </div>
-              </form>
-            </div>
-
-            {/* Payment Display & QR Code Card */}
-            <div className="admin-card">
-              <h3 className="admin-card__heading">Payment Display & UPI QR Code</h3>
-              <p className="helper-text" style={{ marginBottom: 16 }}>
-                Choose how payment information is presented to registrants on the public page, and upload or replace the active UPI QR code.
-              </p>
-
-              {qrStatus.message && (
-                <div className={`alert alert--${qrStatus.type === 'error' ? 'error' : 'success'}`} style={{ marginBottom: 16 }}>
-                  {qrStatus.message}
-                </div>
-              )}
-
-              {/* 3-Way Mode Toggle */}
-              <label style={{ display: 'block', marginBottom: 8, fontSize: 13, fontWeight: 600, color: 'var(--text-muted)' }}>
-                Display Mode on Registration Page
-              </label>
-              <div className="mode-selector">
-                <button
-                  type="button"
-                  className={`mode-btn ${paymentMode === 'bank' ? 'mode-btn--active' : ''}`}
-                  onClick={() => handlePaymentModeChange('bank')}
-                >
-                  Bank Details Only
-                </button>
-                <button
-                  type="button"
-                  className={`mode-btn ${paymentMode === 'qr' ? 'mode-btn--active' : ''}`}
-                  onClick={() => handlePaymentModeChange('qr')}
-                >
-                  QR Code Only
-                </button>
-                <button
-                  type="button"
-                  className={`mode-btn ${paymentMode === 'both' ? 'mode-btn--active' : ''}`}
-                  onClick={() => handlePaymentModeChange('both')}
-                >
-                  Both (QR + Bank)
-                </button>
-              </div>
-
-              {/* QR Management Panel */}
-              <div className="qr-admin-panel">
+          {/* ── Registrations ── */}
+          {activeSection === 'registrations' && (
+            <div>
+              {/* Section Header */}
+              <div className="section-header">
                 <div>
-                  <label style={{ display: 'block', marginBottom: 8, fontSize: 13, fontWeight: 600, color: 'var(--text-muted)' }}>
-                    Active QR Code
-                  </label>
-                  {activeQrFilename ? (
-                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
-                      <div className="qr-preview-box">
-                        <img
-                          src={`${API_URL}/api/payment/qr?t=${Date.now()}`}
-                          alt="Active QR"
-                          onError={e => { e.target.style.display = 'none' }}
-                        />
-                      </div>
-                      <button
-                        type="button"
-                        onClick={handleQrRemove}
-                        className="btn btn--action btn--delete"
-                        style={{ width: '100%', fontSize: 12, padding: '6px 12px' }}
-                      >
-                        Remove QR
-                      </button>
-                    </div>
-                  ) : (
-                    <div style={{
-                      width: 150,
-                      height: 150,
-                      border: '1px dashed var(--border)',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      textAlign: 'center',
-                      color: 'var(--text-subtle)',
-                      fontSize: 12,
-                      padding: 12
-                    }}>
-                      No QR Code currently set
-                    </div>
-                  )}
+                  <h2>Registrations Directory</h2>
+                  <div className="section-header__stats">
+                    <span className="section-header__stat section-header__stat--cyan">{registrations.length} total registrations</span>
+                    <span className="section-header__divider">•</span>
+                    <span className="section-header__stat section-header__stat--green">{verifiedCount} Verified</span>
+                    <span className="section-header__divider">•</span>
+                    <span className="section-header__stat section-header__stat--yellow">{pendingCount} Pending Verification</span>
+                  </div>
+                </div>
+                <button className="btn btn--export" onClick={handleExportCSV}>
+                  <ExportIcon />
+                  [ EXPORT CSV ]
+                </button>
+              </div>
+
+              {/* Filter Bar */}
+              <div className="filter-bar">
+                <div className="filter-bar__search-wrapper">
+                  <SearchIcon />
+                  <input
+                    type="text"
+                    className="filter-bar__search"
+                    placeholder="Search name, institution, UTR, email..."
+                    value={searchQuery}
+                    onChange={e => setSearchQuery(e.target.value)}
+                  />
+                  <span className="filter-bar__shortcut">⌘K</span>
+                </div>
+                <div className="filter-toggle">
+                  {[
+                    { key: 'all', label: `ALL (${registrations.length})` },
+                    { key: 'verified', label: `VERIFIED (${verifiedCount})` },
+                    { key: 'pending', label: `PENDING (${pendingCount})` }
+                  ].map(v => (
+                    <button
+                      key={v.key}
+                      className={`filter-toggle__btn ${activeFilter === v.key ? 'filter-toggle__btn--active' : ''}`}
+                      onClick={() => setActiveFilter(v.key)}
+                    >
+                      {v.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Registrations Table */}
+              <div className="table-wrapper">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Name</th>
+                      <th>Email</th>
+                      <th>Institution</th>
+                      <th>UTR / REF</th>
+                      <th>Tier</th>
+                      <th>Status</th>
+                      <th>Date</th>
+                      <th style={{ textAlign: 'right' }}>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filtered.length === 0 ? (
+                      <tr>
+                        <td colSpan={8} style={{ textAlign: 'center', color: 'var(--text-subtle)', padding: 40 }}>
+                          No registrations found
+                        </td>
+                      </tr>
+                    ) : (
+                      filtered.map(r => {
+                        const displayStatus = getDisplayStatus(r)
+                        const badgeInfo = STATUS_BADGE_MAP[displayStatus] || STATUS_BADGE_MAP.pending
+                        const tierInfo = TIER_BADGE_MAP[r.fee_tier] || TIER_BADGE_MAP.regular
+
+                        return (
+                          <tr key={r.id}>
+                            <td className="td-name">
+                              <div className="td-name-group">
+                                <span className={`td-status-dot ${displayStatus === 'verified' ? 'td-status-dot--green' : 'td-status-dot--yellow'}`} />
+                                <span>{r.name}</span>
+                              </div>
+                            </td>
+                            <td className="td-mono" style={{ color: 'var(--text-muted)' }}>{r.email || '—'}</td>
+                            <td>{r.institution}</td>
+                            <td className="td-mono" style={{ color: 'var(--text-muted)', letterSpacing: '0.08em' }}>{r.utr_number}</td>
+                            <td>
+                              {r.fee_tier && (
+                                <span className={`badge ${tierInfo.className}`}>
+                                  {tierInfo.label}
+                                </span>
+                              )}
+                            </td>
+                            <td>
+                              <span className={`badge ${badgeInfo.className}`}>
+                                <span className={`badge__dot ${displayStatus === 'verified' ? 'badge__dot--green' : 'badge__dot--yellow'}`} />
+                                {badgeInfo.label}
+                              </span>
+                            </td>
+                            <td className="td-mono" style={{ whiteSpace: 'nowrap' }}>
+                              {r.submitted_at ? new Date(r.submitted_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: '2-digit' }) : '—'}
+                            </td>
+                            <td>
+                              <div className="td-actions">
+                                {displayStatus === 'verified' ? (
+                                  <button className="btn btn--action btn--unverify" onClick={() => handleUnverify(r.id)}>Unverify</button>
+                                ) : (
+                                  <button className="btn btn--action btn--verify" onClick={() => handleVerify(r.id)}>Verify</button>
+                                )}
+                                <button className="btn--danger-action" onClick={() => handleDelete(r.id)}>Delete</button>
+                                {r.screenshot_url && (
+                                  <a href={r.screenshot_url.startsWith('http') ? r.screenshot_url : `${API_URL}${r.screenshot_url}`} target="_blank" rel="noopener noreferrer" className="btn btn--action btn--view">View Slip</a>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                        )
+                      })
+                    )}
+                  </tbody>
+                </table>
+
+                {/* Table Footer */}
+                <div className="table-footer">
+                  <div>
+                    Showing <span style={{ color: 'var(--text)', fontWeight: 600 }}>1-{filtered.length}</span> of <span style={{ color: 'var(--text)', fontWeight: 600 }}>{filtered.length}</span> attendees
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ── Event Settings ── */}
+          {activeSection === 'event-settings' && (
+            <div>
+              {/* Ticket Pricing Card */}
+              <div className="admin-card">
+                <div className="admin-card__header">
+                  <div className="admin-card__title-group">
+                    <div className="admin-card__accent-bar admin-card__accent-bar--pink" />
+                    <h3 className="admin-card__heading">Ticket Pricing</h3>
+                  </div>
+                  <div className="admin-card__live-badge">
+                    <span className="admin-card__live-dot" />
+                    <span>LIVE: {earlyBirdEnabled ? `₹${earlyBirdFee || '0'} (EARLY BIRD ACTIVE)` : `₹${regularFee || '0'} (REGULAR PHASE)`}</span>
+                  </div>
                 </div>
 
-                <form onSubmit={handleQrUpload} className="qr-upload-area">
-                  <label style={{ display: 'block', fontSize: 13, fontWeight: 600, color: 'var(--text-muted)' }}>
-                    {activeQrFilename ? 'Replace Active QR Code' : 'Upload New QR Code'}
-                  </label>
-                  <p className="helper-text" style={{ marginTop: -6 }}>
-                    Upload a square PNG or JPG image of your UPI QR code (max 2MB).
-                  </p>
-
-                  <input
-                    type="file"
-                    id="admin-qr-file"
-                    accept="image/png, image/jpeg, image/jpg"
-                    onChange={e => {
-                      const f = e.target.files[0]
-                      if (f) {
-                        setQrUploadFile(f)
-                        setQrUploadPreview(URL.createObjectURL(f))
-                      } else {
-                        setQrUploadFile(null)
-                        setQrUploadPreview(null)
-                      }
-                    }}
-                    style={{
-                      background: 'var(--bg-input)',
-                      border: '1px solid var(--border)',
-                      padding: '8px 12px',
-                      color: 'var(--text)',
-                      fontFamily: 'var(--font-body)',
-                      fontSize: 13
-                    }}
-                  />
-
-                  {qrUploadPreview && (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 4 }}>
-                      <div style={{ width: 50, height: 50, background: 'var(--qr-bg)', padding: 2, border: '1px solid var(--border)' }}>
-                        <img src={qrUploadPreview} alt="Upload preview" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
-                      </div>
-                      <span style={{ fontSize: 12, color: 'var(--accent-cyan)' }}>
-                        Ready to upload: {qrUploadFile?.name}
-                      </span>
+                {/* Early Bird Toggle */}
+                <div className="toggle-row">
+                  <div className="toggle-row__left">
+                    <label className="toggle-switch">
+                      <input
+                        type="checkbox"
+                        checked={earlyBirdEnabled}
+                        onChange={handleToggleEarlyBird}
+                      />
+                      <span className="toggle-switch__slider" />
+                    </label>
+                    <div className="toggle-row__info">
+                      <h4>{earlyBirdEnabled ? 'EARLY BIRD ACTIVE' : 'EARLY BIRD INACTIVE'}</h4>
+                      <p>When toggled, early bird price takes precedence on the public checkout portal.</p>
                     </div>
-                  )}
+                  </div>
+                  <span className="toggle-row__phase">PHASE 01</span>
+                </div>
 
-                  <div style={{ display: 'flex', gap: 12, marginTop: 8 }}>
+                {pricingStatus.message && (
+                  <div className={`alert alert--${pricingStatus.type === 'error' ? 'error' : 'success'}`}>
+                    {pricingStatus.message}
+                  </div>
+                )}
+
+                <div className="admin-form-grid admin-form-grid--3">
+                  <div>
+                    <label className="cyber-label" htmlFor="early-bird-fee">EARLY BIRD PRICE (₹)</label>
+                    <div className="cyber-input-wrapper">
+                      <span className="cyber-input-prefix">₹</span>
+                      <input
+                        className="cyber-input"
+                        type="number"
+                        id="early-bird-fee"
+                        value={earlyBirdFee}
+                        onChange={e => setEarlyBirdFee(e.target.value)}
+                        placeholder="299"
+                        min="0"
+                        style={{ paddingLeft: 32 }}
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="cyber-label" htmlFor="regular-fee">REGULAR PRICE (₹)</label>
+                    <div className="cyber-input-wrapper">
+                      <span className="cyber-input-prefix" style={{ color: 'var(--text-muted)' }}>₹</span>
+                      <input
+                        className="cyber-input"
+                        type="number"
+                        id="regular-fee"
+                        value={regularFee}
+                        onChange={e => setRegularFee(e.target.value)}
+                        placeholder="499"
+                        min="0"
+                        style={{ paddingLeft: 32 }}
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="admin-card__actions">
+                  <button
+                    className="btn--cyber-primary"
+                    onClick={handlePricingSave}
+                    disabled={pricingSaving}
+                  >
+                    {pricingSaving ? <><span className="spinner" /> SAVING...</> : '[ SAVE PRICING ]'}
+                  </button>
+                </div>
+              </div>
+
+              {/* Event Information Card */}
+              <div className="admin-card">
+                <div className="admin-card__header">
+                  <div className="admin-card__title-group">
+                    <div className="admin-card__accent-bar admin-card__accent-bar--cyan" />
+                    <h3 className="admin-card__heading">Event Information</h3>
+                  </div>
+                </div>
+
+                {eventStatus.message && (
+                  <div className={`alert alert--${eventStatus.type === 'error' ? 'error' : 'success'}`}>
+                    {eventStatus.message}
+                  </div>
+                )}
+
+                <form onSubmit={handleEventSave}>
+                  <div className="admin-form-grid admin-form-grid--2">
+                    <div>
+                      <label className="cyber-label" htmlFor="event-date">EVENT DATE</label>
+                      <input
+                        className="cyber-input"
+                        type="text"
+                        id="event-date"
+                        value={eventDate}
+                        onChange={e => setEventDate(e.target.value)}
+                        placeholder="e.g. 10-10-2026"
+                      />
+                    </div>
+                    <div>
+                      <label className="cyber-label" htmlFor="event-venue">EVENT VENUE</label>
+                      <input
+                        className="cyber-input"
+                        type="text"
+                        id="event-venue"
+                        value={eventVenue}
+                        onChange={e => setEventVenue(e.target.value)}
+                        placeholder="e.g. CUSAT, KOCHI"
+                      />
+                    </div>
+                  </div>
+                  <div className="admin-card__actions">
                     <button
                       type="submit"
-                      className="btn btn--primary"
-                      style={{ width: 'auto', padding: '8px 20px' }}
-                      disabled={!qrUploadFile || qrUploading}
+                      className="btn--cyber-primary"
+                      disabled={eventSaving}
                     >
-                      {qrUploading ? <><span className="spinner" /> UPLOADING...</> : (activeQrFilename ? '[ REPLACE QR CODE ]' : '[ UPLOAD QR CODE ]')}
+                      {eventSaving ? <><span className="spinner" /> SAVING...</> : '[ SAVE EVENT INFO ]'}
                     </button>
                   </div>
                 </form>
               </div>
-            </div>
 
-            {/* Bank Details Card */}
-            <div className="admin-card">
-              <h3 className="admin-card__heading">Bank Transfer Details</h3>
-              <p className="helper-text" style={{ marginBottom: 16 }}>
-                Provide the organization's bank details for the registration payment page. Leave empty to hide.
-              </p>
-              {bankStatus.message && (
-                <div className={`alert alert--${bankStatus.type === 'error' ? 'error' : 'success'}`} style={{ marginBottom: 16 }}>
-                  {bankStatus.message}
-                </div>
-              )}
-              <form onSubmit={handleBankSave}>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px', marginBottom: '16px' }}>
-                  <div className="form-group" style={{ marginBottom: 0 }}>
-                    <label htmlFor="bank-name">Bank Name</label>
-                    <input
-                      type="text"
-                      id="bank-name"
-                      value={bankDetails.bank_name}
-                      onChange={e => setBankDetails(prev => ({ ...prev, bank_name: e.target.value }))}
-                      placeholder="e.g. Federal Bank"
-                      maxLength={100}
-                    />
+              {/* Payment Display & QR Code Card */}
+              <div className="admin-card">
+                <div className="admin-card__header">
+                  <div className="admin-card__title-group">
+                    <div className="admin-card__accent-bar admin-card__accent-bar--purple" />
+                    <h3 className="admin-card__heading">Payment Display & UPI QR Code</h3>
                   </div>
-                  <div className="form-group" style={{ marginBottom: 0 }}>
-                    <label htmlFor="account-holder">Account Holder</label>
-                    <input
-                      type="text"
-                      id="account-holder"
-                      value={bankDetails.account_holder}
-                      onChange={e => setBankDetails(prev => ({ ...prev, account_holder: e.target.value }))}
-                      placeholder="e.g. SEDS CUSAT"
-                      maxLength={100}
-                    />
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--text-muted)' }}>QR Status:</span>
+                    <span style={{
+                      padding: '2px 8px',
+                      borderRadius: 4,
+                      fontFamily: 'var(--font-mono)',
+                      fontSize: 11,
+                      fontWeight: 700,
+                      background: activeQrFilename ? 'rgba(52, 211, 153, 0.2)' : 'rgba(244, 63, 94, 0.2)',
+                      color: activeQrFilename ? '#6EE7B7' : '#FCA5A5',
+                      border: `1px solid ${activeQrFilename ? 'rgba(52, 211, 153, 0.4)' : 'rgba(244, 63, 94, 0.4)'}`
+                    }}>
+                      {activeQrFilename ? 'ENABLED' : 'DISABLED'}
+                    </span>
                   </div>
                 </div>
 
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '16px', marginBottom: '16px' }}>
-                  <div className="form-group" style={{ marginBottom: 0 }}>
-                    <label htmlFor="account-number">Account Number</label>
-                    <input
-                      type="text"
-                      id="account-number"
-                      value={bankDetails.account_number}
-                      onChange={e => setBankDetails(prev => ({ ...prev, account_number: e.target.value }))}
-                      placeholder="9 to 18 digits"
-                      maxLength={18}
-                    />
-                  </div>
-                  <div className="form-group" style={{ marginBottom: 0 }}>
-                    <label htmlFor="ifsc-code">IFSC Code</label>
-                    <input
-                      type="text"
-                      id="ifsc-code"
-                      value={bankDetails.ifsc_code}
-                      onChange={e => setBankDetails(prev => ({ ...prev, ifsc_code: e.target.value.toUpperCase() }))}
-                      placeholder="e.g. FDRL0001234"
-                      maxLength={11}
-                    />
-                  </div>
-                  <div className="form-group" style={{ marginBottom: 0 }}>
-                    <label htmlFor="branch-name">Branch Name</label>
-                    <input
-                      type="text"
-                      id="branch-name"
-                      value={bankDetails.branch_name}
-                      onChange={e => setBankDetails(prev => ({ ...prev, branch_name: e.target.value }))}
-                      placeholder="e.g. CUSAT Campus"
-                      maxLength={100}
-                    />
-                  </div>
-                </div>
+                <p className="helper-text" style={{ marginBottom: 16 }}>
+                  Choose how payment information is presented to registrants on the public page, and upload or replace the active UPI QR code.
+                </p>
 
-                <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 20 }}>
+                {qrStatus.message && (
+                  <div className={`alert alert--${qrStatus.type === 'error' ? 'error' : 'success'}`}>
+                    {qrStatus.message}
+                  </div>
+                )}
+
+                {/* 3-Way Mode Toggle */}
+                <label className="cyber-label" style={{ marginBottom: 8 }}>Display Mode on Registration Page</label>
+                <div className="mode-selector">
                   <button
-                    type="submit"
-                    className="btn btn--primary"
-                    style={{ width: 'auto', padding: '10px 24px' }}
-                    disabled={bankSaving}
+                    type="button"
+                    className={`mode-btn ${paymentMode === 'bank' ? 'mode-btn--active' : ''}`}
+                    onClick={() => handlePaymentModeChange('bank')}
                   >
-                    {bankSaving ? <><span className="spinner" /> SAVING...</> : '[ SAVE BANK DETAILS ]'}
+                    Bank Details Only
+                  </button>
+                  <button
+                    type="button"
+                    className={`mode-btn ${paymentMode === 'qr' ? 'mode-btn--active' : ''}`}
+                    onClick={() => handlePaymentModeChange('qr')}
+                  >
+                    QR Code Only
+                  </button>
+                  <button
+                    type="button"
+                    className={`mode-btn ${paymentMode === 'both' ? 'mode-btn--active' : ''}`}
+                    onClick={() => handlePaymentModeChange('both')}
+                  >
+                    Both (QR + Bank)
                   </button>
                 </div>
-              </form>
+
+                {/* QR Management Panel */}
+                <div className="qr-admin-panel">
+                  <div>
+                    {/* Bank fields */}
+                    <form onSubmit={handleBankSave}>
+                      {bankDetails.is_locked && (
+                        <div style={{
+                          background: 'rgba(255, 31, 157, 0.12)',
+                          border: '1px solid var(--neon-pink)',
+                          borderRadius: 6,
+                          padding: '10px 14px',
+                          marginBottom: 16,
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 10,
+                          color: 'var(--neon-pink)',
+                          fontSize: 12,
+                          fontFamily: 'var(--font-mono)'
+                        }}>
+                          <span style={{ fontSize: 16 }}>🔒</span>
+                          <span><strong>FINANCIAL LOCK ACTIVE:</strong> Bank details are hard-locked by server configuration (<code>LOCK_BANK_SETTINGS=true</code>). Editing via web interface is disabled.</span>
+                        </div>
+                      )}
+
+                      <div className="admin-form-grid admin-form-grid--2" style={{ marginBottom: 16 }}>
+                        <div>
+                          <label className="cyber-label" htmlFor="bank-name">BANK NAME</label>
+                          <input className="cyber-input" type="text" id="bank-name" value={bankDetails.bank_name} onChange={e => setBankDetails(prev => ({ ...prev, bank_name: e.target.value }))} placeholder="e.g. Federal Bank" maxLength={100} disabled={bankDetails.is_locked} />
+                        </div>
+                        <div>
+                          <label className="cyber-label" htmlFor="account-holder">PAYEE ACCOUNT HOLDER</label>
+                          <input className="cyber-input" type="text" id="account-holder" value={bankDetails.account_holder} onChange={e => setBankDetails(prev => ({ ...prev, account_holder: e.target.value }))} placeholder="e.g. SEDS CUSAT" maxLength={100} disabled={bankDetails.is_locked} />
+                        </div>
+                      </div>
+                      <div className="admin-form-grid admin-form-grid--2" style={{ marginBottom: 16 }}>
+                        <div>
+                          <label className="cyber-label" htmlFor="account-number">ACCOUNT NUMBER</label>
+                          <input className="cyber-input" type="text" id="account-number" value={bankDetails.account_number} onChange={e => setBankDetails(prev => ({ ...prev, account_number: e.target.value }))} placeholder="9 to 18 digits" maxLength={18} disabled={bankDetails.is_locked} />
+                        </div>
+                        <div>
+                          <label className="cyber-label" htmlFor="ifsc-code">IFSC CODE</label>
+                          <input className="cyber-input" type="text" id="ifsc-code" value={bankDetails.ifsc_code} onChange={e => setBankDetails(prev => ({ ...prev, ifsc_code: e.target.value.toUpperCase() }))} placeholder="e.g. FDRL0001234" maxLength={11} style={{ textTransform: 'uppercase' }} disabled={bankDetails.is_locked} />
+                        </div>
+                      </div>
+                      <div className="admin-form-grid admin-form-grid--2" style={{ marginBottom: 16 }}>
+                        <div>
+                          <label className="cyber-label" htmlFor="branch-name">BRANCH</label>
+                          <input className="cyber-input" type="text" id="branch-name" value={bankDetails.branch_name} onChange={e => setBankDetails(prev => ({ ...prev, branch_name: e.target.value }))} placeholder="e.g. CUSAT Campus" maxLength={100} disabled={bankDetails.is_locked} />
+                        </div>
+                      </div>
+
+                      {!bankDetails.is_locked && (
+                        <div style={{
+                          marginBottom: 16,
+                          padding: '12px 14px',
+                          background: 'rgba(0, 240, 255, 0.05)',
+                          border: '1px solid rgba(0, 240, 255, 0.25)',
+                          borderRadius: 6
+                        }}>
+                          <label className="cyber-label" htmlFor="bank-confirm-password" style={{ color: 'var(--neon-cyan)', display: 'flex', alignItems: 'center', gap: 6 }}>
+                            <span>🔐</span> STEP-UP AUTH: CONFIRM ADMIN PASSWORD
+                          </label>
+                          <p style={{ fontSize: 11, color: 'var(--text-subtle)', marginBottom: 8 }}>
+                            To prevent unauthorized tampering, re-enter your admin password to authorize changes to bank payment details.
+                          </p>
+                          <input
+                            className="cyber-input"
+                            type="password"
+                            id="bank-confirm-password"
+                            value={bankConfirmPassword}
+                            onChange={e => setBankConfirmPassword(e.target.value)}
+                            placeholder="Enter master password to authorize update"
+                            autoComplete="current-password"
+                          />
+                        </div>
+                      )}
+
+                      {bankStatus.message && (
+                        <div className={`alert alert--${bankStatus.type === 'error' ? 'error' : 'success'}`}>
+                          {bankStatus.message}
+                        </div>
+                      )}
+
+                      <div className="admin-card__actions" style={{ borderTop: '1px solid rgba(0,240,255,0.1)', paddingTop: 16 }}>
+                        <button
+                          type="submit"
+                          className="btn--cyber-cyan"
+                          disabled={bankSaving || bankDetails.is_locked || (!bankConfirmPassword && !bankDetails.is_locked)}
+                        >
+                          {bankSaving ? (
+                            <><span className="spinner" /> SAVING...</>
+                          ) : bankDetails.is_locked ? (
+                            '🔒 [ BANK DETAILS LOCKED BY SERVER ]'
+                          ) : (
+                            '[ AUTHORIZE & UPDATE PAYMENT GATEWAY ]'
+                          )}
+                        </button>
+                      </div>
+                    </form>
+                  </div>
+
+                  {/* QR Preview column */}
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
+                    <label className="cyber-label">{activeQrFilename ? 'Active QR Code' : 'Upload QR Code'}</label>
+                    {activeQrFilename ? (
+                      <>
+                        <div className="qr-preview-box" style={{ background: '#fff', padding: 4, borderRadius: 8, border: '2px solid var(--neon-pink)' }}>
+                          <img
+                            src={`${API_URL}/api/payment/qr?t=${qrTimestamp}`}
+                            alt="Active QR"
+                            onError={e => { e.target.style.display = 'none' }}
+                          />
+                        </div>
+                        <button
+                          type="button"
+                          onClick={handleQrRemove}
+                          className="btn--danger-action"
+                          style={{ width: '100%', padding: '8px 12px', fontSize: 11 }}
+                        >
+                          Remove QR
+                        </button>
+                      </>
+                    ) : (
+                      <div style={{
+                        width: 150,
+                        height: 150,
+                        border: '1px dashed var(--border)',
+                        borderRadius: 8,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        textAlign: 'center',
+                        color: 'var(--text-subtle)',
+                        fontSize: 11,
+                        padding: 12
+                      }}>
+                        No QR Code currently set
+                      </div>
+                    )}
+
+                    <form onSubmit={handleQrUpload} style={{ width: '100%' }}>
+                      <input
+                        type="file"
+                        id="admin-qr-file"
+                        accept="image/png, image/jpeg, image/jpg"
+                        onChange={e => {
+                          const f = e.target.files[0]
+                          if (f) {
+                            setQrUploadFile(f)
+                            setQrUploadPreview(URL.createObjectURL(f))
+                          } else {
+                            setQrUploadFile(null)
+                            setQrUploadPreview(null)
+                          }
+                        }}
+                        style={{
+                          width: '100%',
+                          background: 'var(--bg-input)',
+                          border: '1px solid var(--border)',
+                          borderRadius: 4,
+                          padding: '6px 8px',
+                          color: 'var(--text)',
+                          fontFamily: 'var(--font-mono)',
+                          fontSize: 11
+                        }}
+                      />
+
+                      {qrUploadPreview && (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 8 }}>
+                          <div style={{ width: 40, height: 40, background: '#fff', padding: 2, border: '1px solid var(--border)', borderRadius: 4 }}>
+                            <img src={qrUploadPreview} alt="Upload preview" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+                          </div>
+                          <span style={{ fontSize: 11, color: 'var(--neon-cyan)', fontFamily: 'var(--font-mono)' }}>
+                            Ready: {qrUploadFile?.name}
+                          </span>
+                        </div>
+                      )}
+
+                      <button
+                        type="submit"
+                        className="btn--cyber-primary"
+                        style={{ width: '100%', marginTop: 8, fontSize: 11, padding: '8px 12px' }}
+                        disabled={!qrUploadFile || qrUploading}
+                      >
+                        {qrUploading ? <><span className="spinner" /> UPLOADING...</> : (activeQrFilename ? '[ REPLACE QR ]' : '[ UPLOAD QR ]')}
+                      </button>
+                    </form>
+                  </div>
+                </div>
+              </div>
             </div>
-          </div>
-        )}
+          )}
+        </div>
       </main>
     </div>
   )

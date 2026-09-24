@@ -1,46 +1,79 @@
 :root {
   /* ══════════════════════════════════════
-     CORE DESIGN TOKENS — SpaceUp Vol 8
+     CORE DESIGN TOKENS — SpaceUp Vol 8 Redesign
+     Cyberpunk / Neon Space Theme
      ══════════════════════════════════════ */
-  --bg: #0B0E1A;
-  --bg-panel: #131A2C;
-  --accent-orange: #D4703A;
-  --accent-tan: #E8C9A0;
-  --accent-cyan: #5FA8B0;
-  --text: #EDEDED;
-  /* Typography — 'Press Start 2P' from main site; 'Share Tech Mono' thematically consistent with imported arcade font; 'Inter' for legibility */
-  --font-pixel: 'Press Start 2P', monospace;
-  --font-mono: 'Share Tech Mono', monospace;
-  --font-body: 'Inter', sans-serif;
 
-  /* ══════════════════════════════════════
-     SEMANTIC DERIVATIONS
-     ══════════════════════════════════════ */
-  --bg-input: #0E1424;
-  --border: #232D48;
-  --border-strong: #2E3B5D;
-  --border-focus: var(--accent-cyan);
-  
-  --accent-cyan-dim: rgba(95, 168, 176, 0.15);
-  --accent-cyan-glow: rgba(95, 168, 176, 0.35);
-  --accent-orange-dim: rgba(212, 112, 58, 0.15);
-  --accent-orange-glow: rgba(212, 112, 58, 0.35);
+  /* Backgrounds */
+  --bg: #06070E;
+  --bg-panel: #0A0C1B;
+  --bg-panel-alt: #0F1226;
+  --bg-input: rgba(6, 7, 14, 0.7);
+  --bg-card: rgba(10, 12, 27, 0.85);
+  --bg-sidebar: rgba(10, 13, 27, 0.9);
 
-  --danger: #E05252;
-  --danger-dim: rgba(224, 82, 82, 0.15);
-  --success: #3ECF8E;
-  --success-dim: rgba(62, 207, 142, 0.15);
-  --warning: #E5A93C;
-  --warning-dim: rgba(229, 169, 60, 0.15);
+  /* Neon Accents */
+  --neon-pink: #FF2A93;
+  --neon-purple: #8432EC;
+  --neon-cyan: #00F0FF;
+  --neon-blue: #38BDF8;
+  --neon-orange: #FF8A00;
+
+  /* Brand (Admin palette) */
+  --brand-magenta: #FF1F9D;
+  --brand-purple: #5B16FE;
+  --brand-cyan: #00F0FF;
+  --brand-deep-purple: #210B54;
+  --brand-dark-navy: #070913;
+  --brand-card-navy: #0D1122;
+
+  /* Space depth tiers */
+  --space-950: #06070E;
+  --space-900: #0A0C1B;
+  --space-850: #0F1226;
+  --space-800: #151934;
+  --space-700: #1E2448;
+
+  /* Text */
+  --text: #F1F5F9;
+  --text-muted: #94A3B8;
+  --text-subtle: #64748B;
+
+  /* Typography */
+  --font-tech: 'Chakra Petch', sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+  --font-body: 'Plus Jakarta Sans', sans-serif;
+  --font-display: 'Space Grotesk', sans-serif;
+
+  /* Borders */
+  --border: #1A213D;
+  --border-strong: #252F5A;
+  --border-focus: var(--neon-cyan);
+  --border-sidebar: #1B2342;
+
+  /* Semantic */
+  --accent-cyan: var(--neon-cyan);
+  --accent-cyan-dim: rgba(0, 240, 255, 0.1);
+  --accent-cyan-glow: rgba(0, 240, 255, 0.35);
+  --accent-pink-dim: rgba(255, 42, 147, 0.1);
+  --accent-pink-glow: rgba(255, 42, 147, 0.4);
+  --accent-purple-dim: rgba(132, 50, 236, 0.15);
+  --accent-purple-glow: rgba(132, 50, 236, 0.25);
+
+  --danger: #F43F5E;
+  --danger-dim: rgba(244, 63, 94, 0.1);
+  --success: #34D399;
+  --success-dim: rgba(52, 211, 153, 0.1);
+  --warning: #FBBF24;
+  --warning-dim: rgba(251, 191, 36, 0.1);
 
   --qr-bg: #FFFFFF;
   --qr-fg: #000000;
 
-  /* 3D Pixel Button Offsets */
-  --pixel-shadow-cyan: 4px 4px 0 var(--accent-cyan);
-  --pixel-shadow-orange: 4px 4px 0 var(--accent-orange);
-  --pixel-shadow-sm-cyan: 3px 3px 0 var(--accent-cyan);
-  --pixel-shadow-sm-orange: 3px 3px 0 var(--accent-orange);
-  --pixel-shadow-sm-danger: 3px 3px 0 var(--danger);
-  --pixel-shadow-card: 6px 6px 0 var(--border);
+  /* Shadows */
+  --glow-pink: 0 0 25px -3px rgba(255, 42, 147, 0.4);
+  --glow-cyan: 0 0 20px -3px rgba(0, 240, 255, 0.35);
+  --glow-card: 0 0 40px -10px rgba(132, 50, 236, 0.25);
+  --shadow-neon-pink: 0 0 20px -3px rgba(255, 31, 157, 0.45);
+  --shadow-neon-cyan: 0 0 20px -3px rgba(0, 240, 255, 0.4);
 }

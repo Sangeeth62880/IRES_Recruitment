@@ -3,7 +3,7 @@ const path = require('path');
 const multer = require('multer');
 const crypto = require('crypto');
 const supabase = require('../supabaseClient');
-const { requireAdmin, logout } = require('../middleware/adminAuth');
+const { requireAdmin, logout, verifyAdminPassword, isBankSettingsLocked } = require('../middleware/adminAuth');
 const { verifyCsrf, generateCsrfToken } = require('../middleware/csrf');
 const { isValidImageBuffer, getImageMimeTypeFromBuffer, ALLOWED_IMAGE_EXTENSIONS } = require('../utils/fileValidation');
 const { logSecurityEvent } = require('../utils/securityLogger');
@@ -307,7 +307,25 @@ router.patch('/settings/event', async (req, res) => {
 // PATCH /api/admin/settings/bank
 router.patch('/settings/bank', async (req, res) => {
   try {
-    const { bank_name, account_holder, account_number, ifsc_code, branch_name } = req.body;
+    // 1. Check if bank settings are locked by server configuration
+    if (isBankSettingsLocked()) {
+      logSecurityEvent('BLOCKED_LOCKED_BANK_UPDATE', req, 'Attempted modification of locked bank details');
+      return res.status(403).json({
+        success: false,
+        error: 'Bank settings are locked by server configuration and cannot be modified.'
+      });
+    }
+
+    // 2. Step-up authentication: Require admin password confirmation
+    const { confirm_password, admin_password, bank_name, account_holder, account_number, ifsc_code, branch_name } = req.body;
+    const pwd = confirm_password || admin_password;
+    if (!pwd || !verifyAdminPassword(pwd)) {
+      logSecurityEvent('FAILED_STEP_UP_AUTH', req, 'Invalid or missing admin password for bank details update');
+      return res.status(403).json({
+        success: false,
+        error: 'Admin password confirmation is required to authorize changes to bank details.'
+      });
+    }
 
     const bankNameVal = typeof bank_name === 'string' ? bank_name.trim() : '';
     const accountHolderVal = typeof account_holder === 'string' ? account_holder.trim() : '';
@@ -344,6 +362,9 @@ router.patch('/settings/bank', async (req, res) => {
     for (const [key, value] of Object.entries(updates)) {
       await supabase.from('settings').upsert({ key, value }, { onConflict: 'key' });
     }
+
+    const maskedAccount = accountNumberVal ? accountNumberVal.slice(-4).padStart(accountNumberVal.length, '*') : 'empty';
+    logSecurityEvent('BANK_DETAILS_UPDATED', req, `Bank details updated by authenticated admin: ${accountHolderVal}, A/C: ${maskedAccount}, IFSC: ${ifscCodeVal}`);
 
     return res.json({ success: true, bank_details: updates });
   } catch (err) {

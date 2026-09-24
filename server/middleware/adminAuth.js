@@ -11,6 +11,21 @@ function getAdminPassword() {
   return process.env.ADMIN_PASSWORD || 'admin123';
 }
 
+function verifyAdminPassword(password) {
+  if (!password || typeof password !== 'string') return false;
+  try {
+    const expected = Buffer.from(getAdminPassword());
+    const actual = Buffer.from(password);
+    return expected.length === actual.length && crypto.timingSafeEqual(expected, actual);
+  } catch {
+    return false;
+  }
+}
+
+function isBankSettingsLocked() {
+  return process.env.LOCK_BANK_SETTINGS === 'true' || process.env.LOCK_BANK_SETTINGS === '1';
+}
+
 const { logSecurityEvent } = require('../utils/securityLogger');
 
 const loginLimiter = rateLimit({
@@ -51,9 +66,7 @@ function login(req, res) {
   }
 
   // Finding 8: Constant-time comparison using crypto.timingSafeEqual
-  const expected = Buffer.from(getAdminPassword());
-  const actual = Buffer.from(typeof password === 'string' ? password : '');
-  const match = expected.length === actual.length && crypto.timingSafeEqual(expected, actual);
+  const match = verifyAdminPassword(password);
 
   if (match) {
     loginLimiter.resetKey(req.ip);
@@ -91,4 +104,12 @@ function logout(req, res) {
   });
 }
 
-module.exports = { requireAdmin, login, logout, loginLimiter };
+module.exports = {
+  requireAdmin,
+  login,
+  logout,
+  loginLimiter,
+  verifyAdminPassword,
+  isBankSettingsLocked,
+  getAdminPassword
+};
