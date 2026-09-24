@@ -51,7 +51,10 @@ async function loginAsAdmin(customIp) {
 
 async function run() {
   console.log('\n--- Security Remediation Test Suite ---\n');
+  const pricingKeys = ['early_bird_fee', 'regular_fee', 'early_bird_enabled'];
+  const { data: initialPricing } = await supabase.from('settings').select('*').in('key', pricingKeys);
 
+  try {
   // ── 1. Production Default Password Guard ──
   await test('Production boot check: Server refuses to start without ADMIN_PASSWORD in production', async () => {
     const child = spawnSync('node', ['-e', `
@@ -393,6 +396,15 @@ async function run() {
 
     await pool.end();
   });
+  } finally {
+    // Restore Pricing Settings to original state before tests ran
+    await supabase.from('settings').delete().in('key', pricingKeys);
+    if (initialPricing && initialPricing.length > 0) {
+      for (const item of initialPricing) {
+        await supabase.from('settings').upsert({ key: item.key, value: item.value });
+      }
+    }
+  }
 
   console.log(`\n--- Results: ${passed} passed, ${failed} failed ---\n`);
   process.exit(failed > 0 ? 1 : 0);

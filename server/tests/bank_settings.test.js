@@ -58,7 +58,10 @@ function adminFetch(url, options = {}) {
 
 async function run() {
   console.log('\n--- Bank Settings API Tests ---\n');
+  const keys = ['bank_name', 'account_holder', 'account_number', 'ifsc_code', 'branch_name'];
+  const { data: initialSettings } = await supabase.from('settings').select('*').in('key', keys);
 
+  try {
   // Test 1: GET /api/settings/bank
   await test('GET /api/settings/bank → should return all keys (even if empty)', async () => {
     const res = await fetch(`${BASE}/api/settings/bank`);
@@ -203,9 +206,15 @@ async function run() {
     assert(typeof data.is_locked === 'boolean', 'Expected is_locked to be boolean');
   });
 
-  // Cleanup Settings via Supabase client
-  const keys = ['bank_name', 'account_holder', 'account_number', 'ifsc_code', 'branch_name'];
-  await supabase.from('settings').delete().in('key', keys);
+  } finally {
+    // Restore Settings to original state before tests ran
+    await supabase.from('settings').delete().in('key', keys);
+    if (initialSettings && initialSettings.length > 0) {
+      for (const item of initialSettings) {
+        await supabase.from('settings').upsert({ key: item.key, value: item.value });
+      }
+    }
+  }
 
   console.log(`\n--- Results: ${passed} passed, ${failed} failed ---\n`);
   process.exit(failed > 0 ? 1 : 0);

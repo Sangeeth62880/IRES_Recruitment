@@ -57,10 +57,13 @@ function adminFetch(url, options = {}) {
 
 async function run() {
   console.log('\n--- QR Code Payment Display & Admin Management Tests ---\n');
+  const qrKeys = ['payment_display_mode', 'qr_storage_path'];
+  const { data: initialQrSettings } = await supabase.from('settings').select('*').in('key', qrKeys);
 
-  // Ensure clean state before tests
-  await supabase.from('settings').delete().in('key', ['payment_display_mode', 'qr_storage_path']);
+  // Clear for test isolation
+  await supabase.from('settings').delete().in('key', qrKeys);
 
+  try {
   // Test 1: GET /api/payment/qr when no QR is configured → 404
   await test('GET /api/payment/qr when unset → 404 Not Found', async () => {
     const res = await fetch(`${BASE}/api/payment/qr`);
@@ -277,12 +280,15 @@ async function run() {
     }
   });
 
-  // Reset display mode to 'bank'
-  await adminFetch(`${BASE}/api/admin/settings/payment-mode`, {
-    method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ payment_display_mode: 'bank' })
-  });
+  } finally {
+    // Restore original QR & payment display mode settings
+    await supabase.from('settings').delete().in('key', qrKeys);
+    if (initialQrSettings && initialQrSettings.length > 0) {
+      for (const item of initialQrSettings) {
+        await supabase.from('settings').upsert({ key: item.key, value: item.value });
+      }
+    }
+  }
 
   console.log(`\n--- Results: ${passed} passed, ${failed} failed ---\n`);
   process.exit(failed > 0 ? 1 : 0);

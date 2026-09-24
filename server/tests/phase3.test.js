@@ -62,7 +62,10 @@ function adminFetch(url, options = {}) {
 
 async function run() {
   console.log('\n--- Phase 3 Tests: Admin API Endpoints ---\n');
+  const pricingKeys = ['early_bird_fee', 'regular_fee', 'early_bird_enabled'];
+  const { data: initialPricing } = await supabase.from('settings').select('*').in('key', pricingKeys);
 
+  try {
   // Test 1: GET registrations without auth → 401
   await test('GET /api/admin/registrations without auth → 401', async () => {
     const res = await fetch(`${BASE}/api/admin/registrations`);
@@ -164,10 +167,17 @@ async function run() {
     assert(data.fee === 499, `Expected fee=499, got ${data.fee}`);
   });
 
-  // Cleanup
-  await supabase.from('settings').delete().in('key', ['early_bird_fee', 'regular_fee', 'early_bird_enabled']);
-  for (const id of cleanupIds) {
-    await supabase.from('registrations').delete().eq('id', id);
+  } finally {
+    // Restore Pricing Settings to original state before tests ran
+    await supabase.from('settings').delete().in('key', pricingKeys);
+    if (initialPricing && initialPricing.length > 0) {
+      for (const item of initialPricing) {
+        await supabase.from('settings').upsert({ key: item.key, value: item.value });
+      }
+    }
+    for (const id of cleanupIds) {
+      await supabase.from('registrations').delete().eq('id', id);
+    }
   }
 
   console.log(`\n--- Results: ${passed} passed, ${failed} failed ---\n`);
