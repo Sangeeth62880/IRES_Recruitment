@@ -394,6 +394,25 @@ function Register() {
 
         </div>
 
+          {/* ── Helpline Section ── */}
+          <section className="helpline-section">
+            <div className="helpline-section__header">
+              <span className="helpline-section__icon">📞</span>
+              <h3 className="helpline-section__title">HELPLINE</h3>
+              <span className="helpline-section__subtitle">Need assistance? Reach out to us</span>
+            </div>
+            <div className="helpline-section__cards">
+              <a href="tel:+918111804001" className="helpline-card">
+                <span className="helpline-card__name">Naveen</span>
+                <span className="helpline-card__number">+91 81118 04001</span>
+              </a>
+              <a href="tel:+919188316128" className="helpline-card">
+                <span className="helpline-card__name">Ameera</span>
+                <span className="helpline-card__number">+91 91883 16128</span>
+              </a>
+            </div>
+          </section>
+
         {/* Bottom HUD bar */}
         <div className="form-hud-bar">
           <div className="form-hud-bar__status">

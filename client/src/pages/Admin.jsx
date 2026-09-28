@@ -2,6 +2,29 @@ import { useState, useEffect, useCallback } from 'react'
 import { API_URL } from '../config'
 import SU26Logo from '../assets/SU26logo.png'
 
+/* ── Confirm Modal ── */
+function ConfirmModal({ open, title, message, detail, onConfirm, onCancel, confirming }) {
+  if (!open) return null
+  return (
+    <div className="confirm-overlay" onClick={onCancel}>
+      <div className="confirm-modal" onClick={e => e.stopPropagation()}>
+        <div className="confirm-modal__icon">⚠️</div>
+        <h3 className="confirm-modal__title">{title}</h3>
+        <p className="confirm-modal__message">{message}</p>
+        {detail && <div className="confirm-modal__detail">{detail}</div>}
+        <div className="confirm-modal__actions">
+          <button className="btn btn--outline confirm-modal__cancel" onClick={onCancel} disabled={confirming}>
+            [ CANCEL ]
+          </button>
+          <button className="confirm-modal__confirm" onClick={onConfirm} disabled={confirming}>
+            {confirming ? <><span className="spinner" /> DELETING...</> : '[ CONFIRM DELETE ]'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 const NAV_ITEMS = [
   { id: 'registrations', label: 'Registrations', icon: 'users' },
   { id: 'event-settings', label: 'Event Settings', icon: 'settings' }
@@ -84,6 +107,10 @@ function Admin() {
   const [registrations, setRegistrations] = useState([])
   const [activeFilter, setActiveFilter] = useState('all')
   const [searchQuery, setSearchQuery] = useState('')
+
+  // Confirm modal state
+  const [confirmModal, setConfirmModal] = useState({ open: false, title: '', message: '', detail: '', onConfirm: null })
+  const [confirmLoading, setConfirmLoading] = useState(false)
 
   // Pricing state
   const [earlyBirdFee, setEarlyBirdFee] = useState('')
@@ -275,9 +302,23 @@ function Admin() {
   async function handleUnverify(id) {
     try { await apiFetch(`/api/admin/registrations/${id}/unverify`, { method: 'PATCH' }); await loadRegistrations() } catch { /* ignore */ }
   }
-  async function handleDelete(id) {
-    if (!confirm('Delete this registration?')) return
-    try { await apiFetch(`/api/admin/registrations/${id}`, { method: 'DELETE' }); await loadRegistrations() } catch { /* ignore */ }
+  function handleDelete(id) {
+    const reg = registrations.find(r => r.id === id)
+    setConfirmModal({
+      open: true,
+      title: 'DELETE REGISTRATION',
+      message: 'This action is irreversible. The registration record will be permanently removed.',
+      detail: reg ? `${reg.name} — ${reg.email || 'No email'} — UTR: ${reg.utr_number}` : `ID: ${id}`,
+      onConfirm: async () => {
+        setConfirmLoading(true)
+        try {
+          await apiFetch(`/api/admin/registrations/${id}`, { method: 'DELETE' })
+          await loadRegistrations()
+        } catch { /* ignore */ }
+        setConfirmLoading(false)
+        setConfirmModal(prev => ({ ...prev, open: false }))
+      }
+    })
   }
   async function handleExportCSV() {
     try {
@@ -489,8 +530,21 @@ function Admin() {
   }
 
   // QR Remove
-  async function handleQrRemove() {
-    if (!confirm('Are you sure you want to remove the active QR code?')) return
+  function handleQrRemove() {
+    setConfirmModal({
+      open: true,
+      title: 'REMOVE QR CODE',
+      message: 'The active QR code will be permanently deleted. Registrants will no longer see a QR payment option until a new one is uploaded.',
+      detail: null,
+      onConfirm: async () => {
+        setConfirmLoading(true)
+        await doQrRemove()
+        setConfirmLoading(false)
+        setConfirmModal(prev => ({ ...prev, open: false }))
+      }
+    })
+  }
+  async function doQrRemove() {
     setQrStatus({ type: '', message: '' })
     try {
       const res = await apiFetch('/api/admin/settings/qr', {
@@ -561,7 +615,7 @@ function Admin() {
   }
 
   // ── Dashboard ──
-  return (
+  const dashboard = (
     <div className="admin-layout">
       {/* Sidebar */}
       <aside className="sidebar">
@@ -1162,6 +1216,22 @@ function Admin() {
         </div>
       </main>
     </div>
+  )
+
+  // Render
+  return (
+    <>
+      {dashboard}
+      <ConfirmModal
+        open={confirmModal.open}
+        title={confirmModal.title}
+        message={confirmModal.message}
+        detail={confirmModal.detail}
+        onConfirm={confirmModal.onConfirm}
+        onCancel={() => setConfirmModal(prev => ({ ...prev, open: false }))}
+        confirming={confirmLoading}
+      />
+    </>
   )
 }
 
