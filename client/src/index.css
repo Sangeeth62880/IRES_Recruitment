@@ -1623,6 +1623,14 @@ textarea {
   font-size: 11px;
 }
 
+.table-wrapper .td-referral {
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11px;
+}
+
 .table-wrapper .td-utr {
   font-size: 11px;
   letter-spacing: 0.05em;

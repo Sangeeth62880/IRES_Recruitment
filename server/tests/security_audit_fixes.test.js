@@ -183,16 +183,18 @@ async function runTests() {
 
   // 5. CSV export correctly neutralizes values starting with '='
   await test('CSV export: formula injection triggers (=, +, -, @) are prepended with single quote', async () => {
-    // Insert attendee with formula injection in name and institution
+    // Insert attendee with formula injection in name, institution, and referral_code
     const formulaUtr = '8888' + Date.now().toString().slice(-8);
     const formulaName = '=cmd|\' /C calc\'!A0';
     const formulaInst = '@SUM(1+1)*cmd';
+    const formulaRef = '+cmd|calc!A1';
 
     await supabase.from('registrations').insert({
       name: formulaName,
       email: 'formula@test.com',
       phone: '9876543210',
       institution: formulaInst,
+      referral_code: formulaRef,
       utr_number: formulaUtr,
       fee_tier: 'regular'
     });
@@ -221,9 +223,10 @@ async function runTests() {
     assert.strictEqual(csvRes.status, 200, `Expected CSV export status 200, got ${csvRes.status}`);
     const csvText = await csvRes.text();
 
-    // Verify sanitized representation: must contain '=cmd| and '@SUM
+    // Verify sanitized representation: must contain '=cmd|, '@SUM, and '+cmd|calc
     assert(csvText.includes("'=cmd|"), 'CSV should neutralize = formula with leading single quote');
     assert(csvText.includes("'@SUM"), 'CSV should neutralize @ formula with leading single quote');
+    assert(csvText.includes("'+cmd|calc"), 'CSV should neutralize + formula in referral_code with leading single quote');
 
     // Clean up inserted formula registration
     await supabase.from('registrations').delete().eq('utr_number', formulaUtr);

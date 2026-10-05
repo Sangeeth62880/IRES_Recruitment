@@ -126,6 +126,9 @@ async function run() {
     const csv = await res.text();
     const headerLine = csv.split('\n')[0];
     assert(headerLine.includes('institution'), 'CSV headers should include institution');
+    assert(headerLine.includes('referral_code'), 'CSV headers should include referral_code');
+    const cols = headerLine.split(',');
+    assert(cols.indexOf('referral_code') === cols.indexOf('institution') + 1, 'referral_code should be positioned after institution');
     assert(headerLine.includes('fee_tier'), 'CSV headers should include fee_tier');
     assert(!headerLine.includes('department'), 'CSV headers should NOT include department');
     assert(!headerLine.includes('team_selected'), 'CSV headers should NOT include team_selected');

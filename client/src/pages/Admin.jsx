@@ -575,6 +575,7 @@ function Admin() {
       const q = searchQuery.toLowerCase()
       return (r.name && r.name.toLowerCase().includes(q)) || 
              (r.institution && r.institution.toLowerCase().includes(q)) || 
+             (r.referral_code && r.referral_code.toLowerCase().includes(q)) ||
              (r.utr_number && r.utr_number.includes(q)) ||
              (r.email && r.email.toLowerCase().includes(q))
     }
@@ -714,7 +715,7 @@ function Admin() {
                   <input
                     type="text"
                     className="filter-bar__search"
-                    placeholder="Search name, institution, UTR, email..."
+                    placeholder="Search name, institution, referral code, UTR, email..."
                     value={searchQuery}
                     onChange={e => setSearchQuery(e.target.value)}
                   />
@@ -745,6 +746,7 @@ function Admin() {
                       <th className="th-name">Name</th>
                       <th className="th-email">Email</th>
                       <th className="th-institution">Institution</th>
+                      <th className="th-referral">Referral Code</th>
                       <th className="th-utr">UTR / REF</th>
                       <th className="th-tier">Tier</th>
                       <th className="th-status">Status</th>
@@ -755,7 +757,7 @@ function Admin() {
                   <tbody>
                     {filtered.length === 0 ? (
                       <tr>
-                        <td colSpan={8} style={{ textAlign: 'center', color: 'var(--text-subtle)', padding: 40 }}>
+                        <td colSpan={9} style={{ textAlign: 'center', color: 'var(--text-subtle)', padding: 40 }}>
                           No registrations found
                         </td>
                       </tr>
@@ -775,6 +777,7 @@ function Admin() {
                             </td>
                             <td className="td-email td-mono" title={r.email || ''}>{r.email || '—'}</td>
                             <td className="td-institution" title={r.institution}>{r.institution}</td>
+                            <td className="td-referral td-mono" title={r.referral_code || ''}>{r.referral_code || '—'}</td>
                             <td className="td-utr td-mono">{r.utr_number}</td>
                             <td className="td-tier">
                               {r.fee_tier && (

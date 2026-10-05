@@ -178,6 +178,139 @@ async function run() {
     assert(data.tier === 'early_bird' || data.tier === 'regular', `Expected tier to be early_bird or regular, got ${data.tier}`);
   });
 
+  // Test 8: Valid registration WITHOUT referral_code (non-CUSAT) succeeds with referral_code = null
+  await test('POST /api/register without referral code (non-CUSAT) → succeeds with null', async () => {
+    const testUtr = '81' + Date.now().toString().slice(-10);
+    const payload = {
+      name: 'Non CUSAT User',
+      email: 'noncusat@example.com',
+      phone: '9876543210',
+      institution: 'IIT Madras',
+      utr_number: testUtr
+    };
+
+    const res = await registerFetch(`${BASE}/api/register`, {
+      method: 'POST',
+      body: makeFormData(payload)
+    });
+    const data = await res.json();
+    assert(data.success === true, `Expected success=true, got ${JSON.stringify(data)}`);
+    cleanupIds.push(data.id);
+
+    const { data: row } = await supabase
+      .from('registrations').select('referral_code').eq('id', data.id).single();
+    assert(row && row.referral_code === null, `Expected referral_code null, got '${row ? row.referral_code : 'none'}'`);
+  });
+
+  // Test 9: Valid registration WITHOUT referral_code (CUSAT) succeeds with referral_code = null
+  await test('POST /api/register without referral code (CUSAT) → succeeds with null', async () => {
+    const testUtr = '82' + Date.now().toString().slice(-10);
+    const payload = {
+      name: 'CUSAT User No Code',
+      email: 'cusatuser@cusat.ac.in',
+      phone: '9876543210',
+      institution: 'CUSAT',
+      utr_number: testUtr
+    };
+
+    const res = await registerFetch(`${BASE}/api/register`, {
+      method: 'POST',
+      body: makeFormData(payload)
+    });
+    const data = await res.json();
+    assert(data.success === true, `Expected success=true, got ${JSON.stringify(data)}`);
+    cleanupIds.push(data.id);
+
+    const { data: row } = await supabase
+      .from('registrations').select('referral_code').eq('id', data.id).single();
+    assert(row && row.referral_code === null, `Expected referral_code null, got '${row ? row.referral_code : 'none'}'`);
+  });
+
+  // Test 10: Valid registration WITH alphanumeric referral_code succeeds and is stored
+  await test('POST /api/register with valid alphanumeric referral code → succeeds and stored', async () => {
+    const testUtr = '83' + Date.now().toString().slice(-10);
+    const payload = {
+      name: 'CUSAT User With Code',
+      email: 'cusatcode@cusat.ac.in',
+      phone: '9876543210',
+      institution: 'CUSAT',
+      referral_code: 'CUSAT2026SOE',
+      utr_number: testUtr
+    };
+
+    const res = await registerFetch(`${BASE}/api/register`, {
+      method: 'POST',
+      body: makeFormData(payload)
+    });
+    const data = await res.json();
+    assert(data.success === true, `Expected success=true, got ${JSON.stringify(data)}`);
+    cleanupIds.push(data.id);
+
+    const { data: row } = await supabase
+      .from('registrations').select('referral_code').eq('id', data.id).single();
+    assert(row && row.referral_code === 'CUSAT2026SOE', `Expected referral_code 'CUSAT2026SOE', got '${row ? row.referral_code : 'none'}'`);
+  });
+
+  // Test 11: Invalid referral_code with special characters rejected with 400
+  await test('POST /api/register with special characters in referral code → 400', async () => {
+    const testUtr = '84' + Date.now().toString().slice(-10);
+    const payload = {
+      name: 'Invalid Code User',
+      email: 'invalid@example.com',
+      phone: '9876543210',
+      institution: 'CUSAT',
+      referral_code: 'CODE@123!',
+      utr_number: testUtr
+    };
+
+    const res = await registerFetch(`${BASE}/api/register`, {
+      method: 'POST',
+      body: makeFormData(payload)
+    });
+    const data = await res.json();
+    assert(data.success === false, `Expected failure for special characters in referral code, got ${JSON.stringify(data)}`);
+  });
+
+  // Test 12: Invalid referral_code with spaces rejected with 400
+  await test('POST /api/register with spaces in referral code → 400', async () => {
+    const testUtr = '85' + Date.now().toString().slice(-10);
+    const payload = {
+      name: 'Invalid Space Code User',
+      email: 'invalidspace@example.com',
+      phone: '9876543210',
+      institution: 'CUSAT',
+      referral_code: 'CODE 123',
+      utr_number: testUtr
+    };
+
+    const res = await registerFetch(`${BASE}/api/register`, {
+      method: 'POST',
+      body: makeFormData(payload)
+    });
+    const data = await res.json();
+    assert(data.success === false, `Expected failure for spaces in referral code, got ${JSON.stringify(data)}`);
+  });
+
+  // Test 13: Invalid referral_code exceeding 20 characters rejected with 400
+  await test('POST /api/register with referral code > 20 chars → 400', async () => {
+    const testUtr = '86' + Date.now().toString().slice(-10);
+    const payload = {
+      name: 'Long Code User',
+      email: 'longcode@example.com',
+      phone: '9876543210',
+      institution: 'CUSAT',
+      referral_code: '123456789012345678901', // 21 characters
+      utr_number: testUtr
+    };
+
+    const res = await registerFetch(`${BASE}/api/register`, {
+      method: 'POST',
+      body: makeFormData(payload)
+    });
+    const data = await res.json();
+    assert(data.success === false, `Expected failure for referral code > 20 chars, got ${JSON.stringify(data)}`);
+  });
+
   // Cleanup
   for (const id of cleanupIds) {
     // Get screenshot path to clean up from storage

@@ -178,7 +178,7 @@ router.get('/export/csv', async (req, res) => {
 
     if (error) throw error;
 
-    const headers = ['id', 'name', 'email', 'phone', 'institution', 'utr_number', 'fee_tier', 'verified', 'payment_status', 'submitted_at'];
+    const headers = ['id', 'name', 'email', 'phone', 'institution', 'referral_code', 'utr_number', 'fee_tier', 'verified', 'payment_status', 'submitted_at'];
     const csvRows = [headers.join(',')];
 
     for (const row of (rows || [])) {

@@ -60,13 +60,14 @@ async function run() {
         utr_number: testUtr,
         fee_tier: 'early_bird'
       })
-      .select('id, name, email, phone, institution, utr_number, fee_tier, screenshot_storage_path, verified, flagged, payment_status, submitted_at')
+      .select('id, name, email, phone, institution, referral_code, utr_number, fee_tier, screenshot_storage_path, verified, flagged, payment_status, submitted_at')
       .single();
 
     assert(!insertError, `Insert failed: ${insertError ? insertError.message : ''}`);
     assert(insertData.name === 'Schema Test User', `Expected name 'Schema Test User', got '${insertData.name}'`);
     assert(insertData.email === 'schema@test.com', `Expected email, got '${insertData.email}'`);
     assert(insertData.institution === 'Test University', `Expected institution, got '${insertData.institution}'`);
+    assert(insertData.referral_code === null, `Expected referral_code null, got '${insertData.referral_code}'`);
     assert(insertData.fee_tier === 'early_bird', `Expected fee_tier 'early_bird', got '${insertData.fee_tier}'`);
     assert(insertData.utr_number === testUtr, `Expected utr '${testUtr}', got '${insertData.utr_number}'`);
     assert(insertData.verified === false, `Expected verified=false, got ${insertData.verified}`);

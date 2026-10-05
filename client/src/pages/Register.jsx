@@ -27,6 +27,7 @@ function Register() {
     email: '',
     phone: '',
     institution: '',
+    referral_code: '',
     utr_number: ''
   })
   const [errors, setErrors] = useState({})
@@ -116,6 +117,14 @@ function Register() {
     if (!formData.email.trim()) errs.email = 'Email is required'
     if (!formData.phone.trim()) errs.phone = 'Phone number is required'
     if (!formData.institution.trim()) errs.institution = 'Institution / organization is required'
+    if (formData.referral_code && formData.referral_code.trim()) {
+      const trimmedRef = formData.referral_code.trim()
+      if (trimmedRef.length > 20) {
+        errs.referral_code = 'Referral code must not exceed 20 characters'
+      } else if (!/^[a-zA-Z0-9]+$/.test(trimmedRef)) {
+        errs.referral_code = 'Referral code must be alphanumeric (letters and numbers only)'
+      }
+    }
     if (!formData.utr_number.trim()) {
       errs.utr_number = 'UTR / UPI Reference number is required'
     } else if (!/^\d{12}$/.test(formData.utr_number.trim())) {
@@ -139,6 +148,9 @@ function Register() {
     fd.append('email', formData.email.trim())
     fd.append('phone', formData.phone.trim())
     fd.append('institution', formData.institution.trim())
+    if (formData.referral_code && formData.referral_code.trim()) {
+      fd.append('referral_code', formData.referral_code.trim())
+    }
     fd.append('utr_number', formData.utr_number.trim())
     if (screenshot) fd.append('screenshot', screenshot)
 
@@ -336,6 +348,23 @@ function Register() {
                 <label htmlFor="reg-institution">Institution / Organization <span className="required">*</span></label>
                 <input type="text" id="reg-institution" name="institution" value={formData.institution} onChange={handleChange} placeholder="e.g. CUSAT, IIT Bombay, ISRO" />
                 {errors.institution && <p className="error-text">{errors.institution}</p>}
+              </div>
+
+              {/* Referral Code (Optional, CUSAT Students Only) */}
+              <div className="form-group">
+                <label htmlFor="reg-referral-code">REFERRAL CODE (CUSAT STUDENTS ONLY)</label>
+                <input
+                  type="text"
+                  id="reg-referral-code"
+                  name="referral_code"
+                  value={formData.referral_code}
+                  onChange={handleChange}
+                  placeholder="Enter referral code if applicable"
+                  maxLength={20}
+                  autoComplete="off"
+                  spellCheck="false"
+                />
+                {errors.referral_code && <p className="error-text">{errors.referral_code}</p>}
               </div>
 
               {/* UTR */}

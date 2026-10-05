@@ -79,7 +79,7 @@ router.post('/api/register', registerLimiter, (req, res, next) => {
   });
 }, async (req, res) => {
   try {
-    const { name, email, phone, institution, utr_number } = req.body;
+    const { name, email, phone, institution, utr_number, referral_code } = req.body;
 
     // Validate required fields
     const missing = [];
@@ -127,6 +127,19 @@ router.post('/api/register', registerLimiter, (req, res, next) => {
     const phoneRegex = /^[0-9+\-\s()]{7,20}$/;
     if (trimmedPhone.length > 20 || !phoneRegex.test(trimmedPhone)) {
       return res.status(400).json({ success: false, error: 'Please enter a valid phone number (max 20 characters)' });
+    }
+
+    // Referral code validation: optional, alphanumeric only (/^[a-zA-Z0-9]+$/), max length 20
+    let cleanedReferralCode = null;
+    if (referral_code !== undefined && referral_code !== null && String(referral_code) !== '') {
+      const codeStr = String(referral_code);
+      if (codeStr.length > 20) {
+        return res.status(400).json({ success: false, error: 'Referral code must not exceed 20 characters' });
+      }
+      if (!/^[a-zA-Z0-9]+$/.test(codeStr)) {
+        return res.status(400).json({ success: false, error: 'Referral code must be alphanumeric (no spaces or special characters)' });
+      }
+      cleanedReferralCode = codeStr;
     }
 
     // Validate UTR: exactly 12 digits
@@ -187,6 +200,7 @@ router.post('/api/register', registerLimiter, (req, res, next) => {
         email: trimmedEmail,
         phone: trimmedPhone,
         institution: trimmedInstitution,
+        referral_code: cleanedReferralCode,
         utr_number: trimmedUtr,
         fee_tier: tier,
         screenshot_storage_path: storageKey
