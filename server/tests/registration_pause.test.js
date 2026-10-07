@@ -74,10 +74,14 @@ function makeFormData(payload, includeScreenshot = true) {
 async function run() {
   console.log('\n--- Registration Pause & Gateway Control Tests ---\n');
 
-  // Initial cleanup / setup: ensure unpaused
+  const pauseKeys = ['registrations_paused', 'pause_message'];
+  const { data: initialSettings } = await supabase.from('settings').select('*').in('key', pauseKeys);
+
+  // Ensure unpaused for start of test
   await supabase.from('settings').delete().eq('key', 'registrations_paused');
   await supabase.from('settings').delete().eq('key', 'pause_message');
 
+  try {
   await loginAsAdmin();
 
   // Test 1: Public endpoint returns unpaused by default
@@ -155,9 +159,15 @@ async function run() {
     assert(data.is_paused === false, 'Expected is_paused: false');
   });
 
-  // Clean up settings table
-  await supabase.from('settings').delete().eq('key', 'registrations_paused');
-  await supabase.from('settings').delete().eq('key', 'pause_message');
+  } finally {
+    // Restore settings table to state before tests ran
+    await supabase.from('settings').delete().in('key', pauseKeys);
+    if (initialSettings && initialSettings.length > 0) {
+      for (const item of initialSettings) {
+        await supabase.from('settings').upsert({ key: item.key, value: item.value });
+      }
+    }
+  }
 
   console.log(`\n--- Results: ${passed} passed, ${failed} failed ---\n`);
   if (failed > 0) process.exit(1);

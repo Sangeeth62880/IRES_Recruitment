@@ -22,6 +22,11 @@ async function runTests() {
     }
   }
 
+  const pauseKeys = ['registrations_paused', 'pause_message'];
+  const { data: initialPauseSettings } = await supabase.from('settings').select('*').in('key', pauseKeys);
+  await supabase.from('settings').delete().in('key', pauseKeys);
+
+  try {
   // 1. Disallowed extension rejected regardless of valid magic bytes
   await test('Upload rejection: file with disallowed extension (.html) is rejected even with valid PNG magic bytes', async () => {
     // PNG magic bytes followed by HTML/JS payload
@@ -231,6 +236,14 @@ async function runTests() {
     // Clean up inserted formula registration
     await supabase.from('registrations').delete().eq('utr_number', formulaUtr);
   });
+  } finally {
+    await supabase.from('settings').delete().in('key', pauseKeys);
+    if (initialPauseSettings && initialPauseSettings.length > 0) {
+      for (const item of initialPauseSettings) {
+        await supabase.from('settings').upsert({ key: item.key, value: item.value });
+      }
+    }
+  }
 
   console.log(`\n--- Results: ${passed} passed, ${failed} failed ---\n`);
   if (failed > 0) process.exit(1);

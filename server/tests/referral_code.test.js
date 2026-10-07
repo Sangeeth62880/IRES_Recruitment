@@ -93,6 +93,11 @@ function filterRegistrations(registrations, searchQuery) {
 async function run() {
   console.log('\n--- Referral Code Flow Tests ---\n');
 
+  const pauseKeys = ['registrations_paused', 'pause_message'];
+  const { data: initialPauseSettings } = await supabase.from('settings').select('*').in('key', pauseKeys);
+  await supabase.from('settings').delete().in('key', pauseKeys);
+
+  try {
   // Test 1: Non-CUSAT without referral code
   await test('Registration WITHOUT referral code (non-CUSAT) succeeds and stores null', async () => {
     const testUtr = '71' + Date.now().toString().slice(-10);
@@ -293,6 +298,15 @@ async function run() {
       await supabase.storage.from('payment-screenshots').remove([row.screenshot_storage_path]);
     }
     await supabase.from('registrations').delete().eq('id', id);
+  }
+
+  } finally {
+    await supabase.from('settings').delete().in('key', pauseKeys);
+    if (initialPauseSettings && initialPauseSettings.length > 0) {
+      for (const item of initialPauseSettings) {
+        await supabase.from('settings').upsert({ key: item.key, value: item.value });
+      }
+    }
   }
 
   console.log(`\n--- Results: ${passed} passed, ${failed} failed ---\n`);

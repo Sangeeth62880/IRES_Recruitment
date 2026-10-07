@@ -51,8 +51,9 @@ async function loginAsAdmin(customIp) {
 
 async function run() {
   console.log('\n--- Security Remediation Test Suite ---\n');
-  const pricingKeys = ['early_bird_fee', 'regular_fee', 'early_bird_enabled'];
-  const { data: initialPricing } = await supabase.from('settings').select('*').in('key', pricingKeys);
+  const settingsKeys = ['early_bird_fee', 'regular_fee', 'early_bird_enabled', 'registrations_paused', 'pause_message'];
+  const { data: initialSettings } = await supabase.from('settings').select('*').in('key', settingsKeys);
+  await supabase.from('settings').delete().in('key', ['registrations_paused', 'pause_message']);
 
   try {
   // ── 1. Production Default Password Guard ──
@@ -397,10 +398,10 @@ async function run() {
     await pool.end();
   });
   } finally {
-    // Restore Pricing Settings to original state before tests ran
-    await supabase.from('settings').delete().in('key', pricingKeys);
-    if (initialPricing && initialPricing.length > 0) {
-      for (const item of initialPricing) {
+    // Restore Settings to original state before tests ran
+    await supabase.from('settings').delete().in('key', settingsKeys);
+    if (initialSettings && initialSettings.length > 0) {
+      for (const item of initialSettings) {
         await supabase.from('settings').upsert({ key: item.key, value: item.value });
       }
     }

@@ -73,6 +73,10 @@ function adminFetch(url, options = {}) {
 async function run() {
   console.log('\n--- Phase 7 Integration Tests: Full E2E Flow ---\n');
 
+  const pauseKeys = ['registrations_paused', 'pause_message'];
+  const { data: initialPauseSettings } = await supabase.from('settings').select('*').in('key', pauseKeys);
+  await supabase.from('settings').delete().in('key', pauseKeys);
+
   const TEST_UTR = '777766665555';
 
   try {
@@ -164,6 +168,12 @@ async function run() {
         await supabase.storage.from('payment-screenshots').remove([row.screenshot_storage_path]);
       }
       await supabase.from('registrations').delete().eq('id', registrationId);
+    }
+    await supabase.from('settings').delete().in('key', pauseKeys);
+    if (initialPauseSettings && initialPauseSettings.length > 0) {
+      for (const item of initialPauseSettings) {
+        await supabase.from('settings').upsert({ key: item.key, value: item.value });
+      }
     }
   }
 

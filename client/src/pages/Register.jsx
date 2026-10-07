@@ -249,28 +249,10 @@ function Register() {
 
           {isPaused ? (
             <div className="pause-notice-card">
-              <div className="pause-notice-badge">
-                <span className="pause-notice-dot" />
-                <span>GATEWAY TEMPORARILY ON HOLD</span>
-              </div>
               <h2 className="pause-notice-title">REGISTRATIONS PAUSED</h2>
-              <p className="pause-notice-desc">
-                {pauseMessage || 'Registrations are temporarily paused. Please check back shortly or stay tuned to our social announcements.'}
+              <p className="pause-notice-desc" style={{ marginBottom: 0 }}>
+                {pauseMessage || 'Registrations are temporarily paused. Please check back shortly or stay tuned to our announcements.'}
               </p>
-              <div style={{ display: 'flex', justifyContent: 'center', gap: 12, flexWrap: 'wrap' }}>
-                <a
-                  href="https://instagram.com/seds.cusat"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="btn btn--outline"
-                  style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '8px 16px', fontSize: 12 }}
-                >
-                  <span>INSTAGRAM @SEDS.CUSAT</span>
-                  <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" />
-                  </svg>
-                </a>
-              </div>
             </div>
           ) : (
             <>
