@@ -45,7 +45,18 @@ function Register() {
   const [screenshot, setScreenshot] = useState(null)
   const [previewUrl, setPreviewUrl] = useState(null)
 
+  const [isPaused, setIsPaused] = useState(false)
+  const [pauseMessage, setPauseMessage] = useState('')
+
   useEffect(() => {
+    fetch(`${API_URL}/api/settings/registration-status`)
+      .then(r => r.json())
+      .then(data => {
+        if (data.is_paused !== undefined) setIsPaused(!!data.is_paused)
+        if (data.pause_message) setPauseMessage(data.pause_message)
+      })
+      .catch(() => {})
+
     fetch(`${API_URL}/api/settings/fee`)
       .then(r => r.json())
       .then(data => {
@@ -217,11 +228,13 @@ function Register() {
             </div>
             <img src={SU26Logo} alt="SpaceUp 26 Volume 8" className="card-header__logo" />
             <p className="card-header__subtitle">
-              Reserve your spot — complete the payment transfer and submit your confirmation below.
+              {isPaused
+                ? 'SpaceUp 26 Volume 8 — Event Registration Gateway'
+                : 'Reserve your spot — complete the payment transfer and submit your confirmation below.'}
             </p>
 
             {/* Dynamic Fee Badge */}
-            {fee !== null && (
+            {!isPaused && fee !== null && (
               <div className="card-header__fee-badge">
                 <div className="card-header__fee-badge-glow" />
                 <div className="card-header__fee-badge-inner">
@@ -234,7 +247,34 @@ function Register() {
             )}
           </header>
 
-          {/* ── Section 01: Payment & Transfer Details ── */}
+          {isPaused ? (
+            <div className="pause-notice-card">
+              <div className="pause-notice-badge">
+                <span className="pause-notice-dot" />
+                <span>GATEWAY TEMPORARILY ON HOLD</span>
+              </div>
+              <h2 className="pause-notice-title">REGISTRATIONS PAUSED</h2>
+              <p className="pause-notice-desc">
+                {pauseMessage || 'Registrations are temporarily paused. Please check back shortly or stay tuned to our social announcements.'}
+              </p>
+              <div style={{ display: 'flex', justifyContent: 'center', gap: 12, flexWrap: 'wrap' }}>
+                <a
+                  href="https://instagram.com/seds.cusat"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="btn btn--outline"
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '8px 16px', fontSize: 12 }}
+                >
+                  <span>INSTAGRAM @SEDS.CUSAT</span>
+                  <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" />
+                  </svg>
+                </a>
+              </div>
+            </div>
+          ) : (
+            <>
+              {/* ── Section 01: Payment & Transfer Details ── */}
           {(() => {
             const showQr = (paymentMode === 'qr' || paymentMode === 'both') && qrImageUrl;
             const showBank = (paymentMode === 'bank' || paymentMode === 'both') && bankDetails;
@@ -420,6 +460,8 @@ function Register() {
               </div>
             </form>
           </section>
+        </>
+      )}
 
         </div>
 
@@ -445,8 +487,11 @@ function Register() {
         {/* Bottom HUD bar */}
         <div className="form-hud-bar">
           <div className="form-hud-bar__status">
-            <span className="form-hud-bar__dot" />
-            <span>SYSTEM READY • SPACEUP 2026</span>
+            <span
+              className="form-hud-bar__dot"
+              style={isPaused ? { background: '#FF8A00', boxShadow: '0 0 8px #FF8A00' } : {}}
+            />
+            <span>{isPaused ? 'GATEWAY PAUSED • SPACEUP 2026' : 'SYSTEM READY • SPACEUP 2026'}</span>
           </div>
           <div className="form-hud-bar__hosted">
             HOSTED BY SPACEUP VOL 8 ORGANIZING COMMITTEE

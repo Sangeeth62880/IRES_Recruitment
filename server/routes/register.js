@@ -64,8 +64,31 @@ async function getActivePricing() {
   return { fee: regularFee, tier: 'regular' };
 }
 
+/**
+ * Helper middleware: ensure registrations are not temporarily paused
+ */
+async function checkRegistrationActive(req, res, next) {
+  try {
+    const { data: pausedRow } = await supabase
+      .from('settings').select('value').eq('key', 'registrations_paused').maybeSingle();
+
+    if (pausedRow && pausedRow.value === '1') {
+      const { data: msgRow } = await supabase
+        .from('settings').select('value').eq('key', 'pause_message').maybeSingle();
+      return res.status(403).json({
+        success: false,
+        error: (msgRow && msgRow.value && msgRow.value.trim()) || 'Registrations are temporarily paused. Please check back later.'
+      });
+    }
+    next();
+  } catch (err) {
+    console.error('Error checking registration pause status:', err);
+    next();
+  }
+}
+
 // POST /api/register
-router.post('/api/register', registerLimiter, (req, res, next) => {
+router.post('/api/register', registerLimiter, checkRegistrationActive, (req, res, next) => {
   uploadScreenshot.single('screenshot')(req, res, (err) => {
     if (err) {
       if (err instanceof multer.MulterError && err.code === 'LIMIT_FILE_SIZE') {
@@ -224,6 +247,29 @@ router.post('/api/register', registerLimiter, (req, res, next) => {
   } catch (err) {
     console.error('Registration error:', err);
     return res.status(500).json({ success: false, error: 'Server error during registration' });
+  }
+});
+
+// GET /api/settings/registration-status (public — checks whether registrations are active or paused)
+router.get('/api/settings/registration-status', async (req, res) => {
+  try {
+    const { data: rows } = await supabase
+      .from('settings')
+      .select('key, value')
+      .in('key', ['registrations_paused', 'pause_message']);
+
+    const settings = {};
+    if (rows) {
+      rows.forEach(r => { settings[r.key] = r.value; });
+    }
+
+    return res.json({
+      is_paused: settings.registrations_paused === '1',
+      pause_message: settings.pause_message || ''
+    });
+  } catch (err) {
+    console.error('Error fetching registration status:', err);
+    return res.status(500).json({ success: false, error: 'Server error' });
   }
 });
 

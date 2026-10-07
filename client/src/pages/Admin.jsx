@@ -119,6 +119,12 @@ function Admin() {
   const [pricingSaving, setPricingSaving] = useState(false)
   const [pricingStatus, setPricingStatus] = useState({ type: '', message: '' })
 
+  // Registration Gateway (Pause) state
+  const [registrationsPaused, setRegistrationsPaused] = useState(false)
+  const [pauseMessage, setPauseMessage] = useState('')
+  const [pauseSaving, setPauseSaving] = useState(false)
+  const [pauseStatus, setPauseStatus] = useState({ type: '', message: '' })
+
   // Event info state
   const [eventDate, setEventDate] = useState('')
   const [eventVenue, setEventVenue] = useState('')
@@ -264,6 +270,15 @@ function Admin() {
     } catch { /* ignore */ }
   }, [apiFetch])
 
+  const loadRegistrationStatus = useCallback(async () => {
+    try {
+      const res = await apiFetch('/api/admin/settings/registration-status')
+      const data = await res.json()
+      setRegistrationsPaused(!!data.is_paused)
+      setPauseMessage(data.pause_message || '')
+    } catch { /* ignore */ }
+  }, [apiFetch])
+
   useEffect(() => {
     if (!loggedIn) return
     let ignore = false
@@ -274,11 +289,12 @@ function Admin() {
         await loadBankDetails()
         await loadEventInfo()
         await loadPaymentSettings()
+        await loadRegistrationStatus()
       }
     }
     init()
     return () => { ignore = true }
-  }, [loggedIn, loadRegistrations, loadPricing, loadBankDetails, loadEventInfo, loadPaymentSettings])
+  }, [loggedIn, loadRegistrations, loadPricing, loadBankDetails, loadEventInfo, loadPaymentSettings, loadRegistrationStatus])
 
   useEffect(() => {
     if (!loggedIn || activeSection !== 'event-settings') return
@@ -289,11 +305,12 @@ function Admin() {
         await loadBankDetails()
         await loadEventInfo()
         await loadPaymentSettings()
+        await loadRegistrationStatus()
       }
     }
     refreshSettings()
     return () => { ignore = true }
-  }, [loggedIn, activeSection, loadPricing, loadBankDetails, loadEventInfo, loadPaymentSettings])
+  }, [loggedIn, activeSection, loadPricing, loadBankDetails, loadEventInfo, loadPaymentSettings, loadRegistrationStatus])
 
   // Registration actions
   async function handleVerify(id) {
@@ -375,6 +392,55 @@ function Admin() {
       })
     } catch {
       setEarlyBirdEnabled(!newVal) // revert on error
+    }
+  }
+
+  // Registration pause toggle (auto-saves)
+  async function handleTogglePause() {
+    const newVal = !registrationsPaused
+    setRegistrationsPaused(newVal)
+    try {
+      const res = await apiFetch('/api/admin/settings/registration-status', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ is_paused: newVal })
+      })
+      const data = await res.json()
+      if (!data.success) {
+        setRegistrationsPaused(!newVal)
+        setPauseStatus({ type: 'error', message: data.error || 'Failed to update registration status' })
+      } else {
+        setPauseStatus({ type: 'success', message: newVal ? 'Registrations are now PAUSED!' : 'Registrations are now OPEN!' })
+        setTimeout(() => setPauseStatus(prev => prev.type === 'success' ? { type: '', message: '' } : prev), 4000)
+      }
+    } catch {
+      setRegistrationsPaused(!newVal)
+      setPauseStatus({ type: 'error', message: 'Network error. Please try again.' })
+    }
+  }
+
+  // Registration pause notice save
+  async function handlePauseMessageSave(e) {
+    if (e) e.preventDefault()
+    setPauseSaving(true)
+    setPauseStatus({ type: '', message: '' })
+    try {
+      const res = await apiFetch('/api/admin/settings/registration-status', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ is_paused: registrationsPaused, pause_message: pauseMessage })
+      })
+      const data = await res.json()
+      if (data.success) {
+        setPauseStatus({ type: 'success', message: 'Gateway notice updated successfully!' })
+        setTimeout(() => setPauseStatus(prev => prev.type === 'success' ? { type: '', message: '' } : prev), 4000)
+      } else {
+        setPauseStatus({ type: 'error', message: data.error || 'Failed to update gateway notice' })
+      }
+    } catch {
+      setPauseStatus({ type: 'error', message: 'Network error. Please try again.' })
+    } finally {
+      setPauseSaving(false)
     }
   }
 
@@ -679,9 +745,37 @@ function Admin() {
         <header className="admin-topbar">
           <div className="admin-topbar__status">
             <div style={{ position: 'relative', width: 10, height: 10 }}>
-              <span className="admin-topbar__ping" />
+              <span className="admin-topbar__ping" style={registrationsPaused ? { background: 'var(--neon-pink)' } : {}} />
             </div>
             <span className="admin-topbar__session">ADMIN CONSOLE</span>
+          </div>
+
+          <div
+            onClick={() => setActiveSection('event-settings')}
+            style={{
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+              padding: '4px 12px',
+              borderRadius: 20,
+              fontSize: 11,
+              fontFamily: 'var(--font-mono)',
+              letterSpacing: '0.08em',
+              background: registrationsPaused ? 'rgba(255, 42, 147, 0.12)' : 'rgba(52, 211, 153, 0.12)',
+              border: `1px solid ${registrationsPaused ? 'rgba(255, 42, 147, 0.4)' : 'rgba(52, 211, 153, 0.4)'}`,
+              color: registrationsPaused ? '#FF2A93' : '#6EE7B7'
+            }}
+            title="Click to configure registration status in Event Settings"
+          >
+            <span style={{
+              width: 6,
+              height: 6,
+              borderRadius: '50%',
+              background: registrationsPaused ? '#FF2A93' : '#10B981',
+              boxShadow: registrationsPaused ? '0 0 6px #FF2A93' : '0 0 6px #10B981'
+            }} />
+            <span>{registrationsPaused ? 'GATEWAY: PAUSED' : 'GATEWAY: OPEN'}</span>
           </div>
         </header>
 
@@ -690,6 +784,40 @@ function Admin() {
           {/* ── Registrations ── */}
           {activeSection === 'registrations' && (
             <div>
+              {/* Alert if registrations are paused */}
+              {registrationsPaused && (
+                <div style={{
+                  background: 'rgba(255, 42, 147, 0.12)',
+                  border: '1px solid rgba(255, 42, 147, 0.4)',
+                  borderRadius: 8,
+                  padding: '12px 16px',
+                  marginBottom: 20,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: 12
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <span style={{ fontSize: 18 }}>⏸️</span>
+                    <div>
+                      <div style={{ fontFamily: 'var(--font-tech)', fontSize: 13, color: '#fff', letterSpacing: '0.05em' }}>
+                        PUBLIC REGISTRATIONS ARE CURRENTLY PAUSED
+                      </div>
+                      <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+                        New applicants cannot submit the registration form. Notice: "{pauseMessage || 'Registrations temporarily on hold'}"
+                      </div>
+                    </div>
+                  </div>
+                  <button
+                    className="btn btn--outline"
+                    style={{ fontSize: 11, padding: '6px 12px', whiteSpace: 'nowrap' }}
+                    onClick={() => setActiveSection('event-settings')}
+                  >
+                    [ MANAGE GATEWAY ]
+                  </button>
+                </div>
+              )}
+
               {/* Section Header */}
               <div className="section-header">
                 <div>
@@ -828,6 +956,85 @@ function Admin() {
           {/* ── Event Settings ── */}
           {activeSection === 'event-settings' && (
             <div>
+              {/* Registration Gateway & Status Control Card */}
+              <div className="admin-card">
+                <div className="admin-card__header">
+                  <div className="admin-card__title-group">
+                    <div className={`admin-card__accent-bar ${registrationsPaused ? 'admin-card__accent-bar--pink' : 'admin-card__accent-bar--cyan'}`} />
+                    <h3 className="admin-card__heading">Registration Gateway</h3>
+                  </div>
+                  <div className="admin-card__live-badge" style={{
+                    borderColor: registrationsPaused ? 'rgba(255, 42, 147, 0.4)' : 'rgba(52, 211, 153, 0.4)',
+                    color: registrationsPaused ? '#FF2A93' : '#6EE7B7',
+                    background: registrationsPaused ? 'rgba(255, 42, 147, 0.12)' : 'rgba(52, 211, 153, 0.15)'
+                  }}>
+                    <span className="admin-card__live-dot" style={{
+                      background: registrationsPaused ? '#FF2A93' : '#10B981',
+                      boxShadow: registrationsPaused ? '0 0 8px #FF2A93' : '0 0 8px #10B981'
+                    }} />
+                    <span>{registrationsPaused ? 'GATEWAY PAUSED' : 'GATEWAY OPEN'}</span>
+                  </div>
+                </div>
+
+                <div className="toggle-row" style={{ marginBottom: 20 }}>
+                  <div className="toggle-row__left">
+                    <label className="toggle-switch">
+                      <input
+                        type="checkbox"
+                        checked={registrationsPaused}
+                        onChange={handleTogglePause}
+                      />
+                      <span className="toggle-switch__slider" />
+                    </label>
+                    <div className="toggle-row__info">
+                      <h4>{registrationsPaused ? 'REGISTRATIONS TEMPORARILY PAUSED' : 'REGISTRATIONS ACTIVELY OPEN'}</h4>
+                      <p>
+                        {registrationsPaused
+                          ? 'Public portal is displaying pause notice. New submissions are rejected at the server level.'
+                          : 'Public portal is accepting registrations and payments.'}
+                      </p>
+                    </div>
+                  </div>
+                  <span className="toggle-row__phase" style={{ color: registrationsPaused ? 'var(--neon-pink)' : 'var(--neon-cyan)' }}>
+                    {registrationsPaused ? 'PAUSED' : 'ACTIVE'}
+                  </span>
+                </div>
+
+                {pauseStatus.message && (
+                  <div className={`alert alert--${pauseStatus.type === 'error' ? 'error' : 'success'}`}>
+                    {pauseStatus.message}
+                  </div>
+                )}
+
+                <form onSubmit={handlePauseMessageSave}>
+                  <div style={{ marginBottom: 16 }}>
+                    <label className="cyber-label" htmlFor="pause-message">CUSTOM PAUSE NOTICE (SHOWN TO REGISTRANTS WHEN PAUSED)</label>
+                    <input
+                      className="cyber-input"
+                      type="text"
+                      id="pause-message"
+                      value={pauseMessage}
+                      onChange={e => setPauseMessage(e.target.value)}
+                      placeholder="e.g. Registrations are temporarily paused. Next phase opening soon!"
+                      maxLength={250}
+                    />
+                    <span className="helper-text" style={{ marginTop: 6, display: 'block' }}>
+                      This announcement is displayed prominently to visitors on the registration page while the gateway is paused.
+                    </span>
+                  </div>
+
+                  <div className="admin-card__actions">
+                    <button
+                      type="submit"
+                      className="btn--cyber-primary"
+                      disabled={pauseSaving}
+                    >
+                      {pauseSaving ? <><span className="spinner" /> SAVING...</> : '[ SAVE GATEWAY NOTICE ]'}
+                    </button>
+                  </div>
+                </form>
+              </div>
+
               {/* Ticket Pricing Card */}
               <div className="admin-card">
                 <div className="admin-card__header">

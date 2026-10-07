@@ -280,6 +280,61 @@ router.post('/settings/pricing', async (req, res) => {
   }
 });
 
+// GET /api/admin/settings/registration-status
+router.get('/settings/registration-status', async (req, res) => {
+  try {
+    const { data: rows } = await supabase
+      .from('settings')
+      .select('key, value')
+      .in('key', ['registrations_paused', 'pause_message']);
+
+    const settings = {};
+    if (rows) rows.forEach(r => { settings[r.key] = r.value; });
+
+    return res.json({
+      is_paused: settings.registrations_paused === '1',
+      pause_message: settings.pause_message || ''
+    });
+  } catch (err) {
+    console.error('Registration status fetch error:', err);
+    return res.status(500).json({ success: false, error: 'Server error' });
+  }
+});
+
+// PATCH /api/admin/settings/registration-status
+router.patch('/settings/registration-status', async (req, res) => {
+  try {
+    const { is_paused, pause_message } = req.body;
+
+    if (is_paused !== undefined) {
+      const val = is_paused ? '1' : '0';
+      await supabase.from('settings').upsert({ key: 'registrations_paused', value: val }, { onConflict: 'key' });
+    }
+
+    if (pause_message !== undefined) {
+      const val = typeof pause_message === 'string' ? pause_message.trim() : '';
+      await supabase.from('settings').upsert({ key: 'pause_message', value: val }, { onConflict: 'key' });
+    }
+
+    const { data: rows } = await supabase
+      .from('settings')
+      .select('key, value')
+      .in('key', ['registrations_paused', 'pause_message']);
+
+    const settings = {};
+    if (rows) rows.forEach(r => { settings[r.key] = r.value; });
+
+    return res.json({
+      success: true,
+      is_paused: settings.registrations_paused === '1',
+      pause_message: settings.pause_message || ''
+    });
+  } catch (err) {
+    console.error('Registration status update error:', err);
+    return res.status(500).json({ success: false, error: 'Server error' });
+  }
+});
+
 // PATCH /api/admin/settings/event
 router.patch('/settings/event', async (req, res) => {
   try {

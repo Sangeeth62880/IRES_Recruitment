@@ -6,7 +6,7 @@
   "scripts": {
     "start": "node index.js",
     "dev": "nodemon index.js",
-    "test": "npm run test:phase1 && npm run test:phase2 && npm run test:phase3 && npm run test:phase7 && npm run test:bank && npm run test:qr && npm run test:audit && npm run test:security && npm run test:referral",
+    "test": "npm run test:phase1 && npm run test:phase2 && npm run test:phase3 && npm run test:phase7 && npm run test:bank && npm run test:qr && npm run test:audit && npm run test:security && npm run test:referral && npm run test:pause",
     "test:phase1": "node tests/phase1.test.js",
     "test:phase2": "node tests/phase2.test.js",
     "test:phase3": "node tests/phase3.test.js",
@@ -15,7 +15,8 @@
     "test:security": "node tests/security.test.js",
     "test:qr": "node tests/qr_payment.test.js",
     "test:audit": "node tests/security_audit_fixes.test.js",
-    "test:referral": "node tests/referral_code.test.js"
+    "test:referral": "node tests/referral_code.test.js",
+    "test:pause": "node tests/registration_pause.test.js"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.49.0",

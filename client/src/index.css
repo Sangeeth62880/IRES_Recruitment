@@ -2305,3 +2305,73 @@ textarea {
   opacity: 0.6;
   cursor: not-allowed;
 }
+
+/* ── Registration Paused State (Public & Admin) ── */
+.pause-notice-card {
+  background: rgba(15, 18, 38, 0.7);
+  border: 1px solid rgba(255, 138, 0, 0.4);
+  border-radius: 12px;
+  padding: 36px 24px;
+  text-align: center;
+  margin: 20px 0 32px;
+  position: relative;
+  overflow: hidden;
+  box-shadow: 0 0 30px rgba(255, 138, 0, 0.08);
+}
+
+.pause-notice-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, #FF8A00, #FF2A93, transparent);
+}
+
+.pause-notice-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(255, 138, 0, 0.15);
+  border: 1px solid rgba(255, 138, 0, 0.5);
+  padding: 4px 14px;
+  border-radius: 20px;
+  font-family: var(--font-tech);
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  color: #FFA500;
+  margin-bottom: 16px;
+}
+
+.pause-notice-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #FF8A00;
+  box-shadow: 0 0 8px #FF8A00;
+  animation: pulse-dot 2s infinite;
+}
+
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.4; transform: scale(0.85); }
+}
+
+.pause-notice-title {
+  font-family: var(--font-tech);
+  font-size: 20px;
+  letter-spacing: 0.08em;
+  color: #fff;
+  margin: 0 0 12px;
+}
+
+.pause-notice-desc {
+  font-family: var(--font-body);
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--text-muted);
+  max-width: 520px;
+  margin: 0 auto 24px;
+}
+
